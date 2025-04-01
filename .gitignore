@@ -1,5 +1,15 @@
 .DS_store
 __pycache__/
 
+chkpts/
+
+data/
+**data/
+
+results/
+
 *.pth
 *.npy
+
+wget-log
+
