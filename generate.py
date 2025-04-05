@@ -42,6 +42,7 @@ def main():
     parser.add_argument("--num_samples", default=1, type=int, help='Number of samples to generate')
     parser.add_argument("--input_dir", type=str, required=True, help='location of src img, flows, etc.')
     parser.add_argument("--log_freq", type=int, default=0, help='frequency to log info')
+    parser.add_argument("--input_src", type=str, default="pred.png", help="Filename of source image in input_dir, remember the format eg pred_256x256")
 
     # Vanilla diffusion args
     parser.add_argument("--ddim_steps", type=int, default=500, help="number of ddim sampling steps. n.b. this is kind of hardcoded, so maybe don't change")
@@ -98,7 +99,8 @@ def main():
     torch.set_grad_enabled(False)
 
     # Get guidance image
-    target_image_path = input_dir / 'pred.png'
+    # target_image_path = input_dir / 'pred.png'
+    target_image_path = input_dir / opt.input_src
     src_img = to_tensor(Image.open(target_image_path))[None] * 2 - 1
     src_img = src_img.cuda()
 
