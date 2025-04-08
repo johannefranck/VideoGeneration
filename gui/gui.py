@@ -12,16 +12,42 @@ im = Image.open(im_path)
 im = np.array(im)
 shade = 0.5
 
+
+from huggingface_hub import hf_hub_download
+
+checkpoint_path = hf_hub_download("ybelkada/segment-anything", "checkpoints/sam_vit_b_01ec64.pth")
+
 ### START SAM STUFF ###
 from segment_anything import SamPredictor, sam_model_registry
 
 sam_checkpoint = "./assets/sam_vit_b_01ec64.pth"
 model_type = "vit_b"
 device = "cpu"
-sam = sam_model_registry[model_type](checkpoint=sam_checkpoint)
+sam = sam_model_registry[model_type](checkpoint=checkpoint_path)
 sam.to(device=device)
 predictor = SamPredictor(sam)
-predictor.set_image(im)
+
+from PIL import Image
+import numpy as np
+from PIL import Image
+
+def resize_longest_side(img: Image.Image, target_size: int = 1024) -> Image.Image:
+    w, h = img.size
+    scale = target_size / max(w, h)
+    new_size = (int(w * scale), int(h * scale))
+    return img.resize(new_size, Image.Resampling.LANCZOS)
+
+
+# Open image and resize it properly
+im_path = './assets/topiary.png'
+im_pil = Image.open(im_path).convert("RGB")
+im_resized = resize_longest_side(im_pil)
+
+
+predictor.set_image(np.array(im_resized))  # ← Correct: use the resized image!
+
+
+#predictor.set_image(im)
 ### END SAM STUFF ###
 
 if MODE == 'translate':
@@ -39,6 +65,7 @@ def show_image(image):
     pygame.display.flip()
 
 # Initialize Pygame
+print("Initializing Pygame...")
 pygame.init()
 
 # Colors
@@ -46,6 +73,7 @@ white = (255, 255, 255)
 black = (0, 0, 0)
 
 # Set up the screen
+print("Setting up the screen...")
 screen_width, screen_height = 512, 512
 screen = pygame.display.set_mode((screen_width, screen_height))
 pygame.display.set_caption("Arrow App")
@@ -53,6 +81,7 @@ screen.fill(white)
 
 # Draw image
 image = Image.open(im_path)
+print("Drawing image...")
 show_image(image)
 
 # Arrow properties

@@ -1,0 +1,33 @@
+# Python version requirement (note: pip ignores this line, just for reference)
+# Requires Python 3.8.5
+
+# PyTorch (with CUDA 11.3 support)
+torch==1.11.0+cu113
+torchvision==0.12.0+cu113
+--extra-index-url https://download.pytorch.org/whl/cu113
+
+# Core dependencies
+numpy==1.21.0 #19.2
+albumentations==0.4.3
+diffusers
+opencv-python==4.7.0.72 #4.1.2.30
+imageio==2.9.0
+imageio-ffmpeg==0.4.2
+pytorch-lightning==1.4.2
+omegaconf==2.1.1
+test-tube>=0.7.5
+streamlit>=0.73.1
+einops==0.3.0
+torch-fidelity==0.3.0
+transformers==4.19.2
+torchmetrics==0.6.0
+kornia==0.6
+
+
+-e git+https://github.com/CompVis/taming-transformers.git@master#egg=taming-transformers
+-e git+https://github.com/openai/CLIP.git@main#egg=clip
+
+#source motion_guidance_env/bin/activate
+export PYTHONPATH=/VideoGeneration/motion_guidance_env/src/taming-transformers
+
+export PYTHONPATH=/work3/s201390/VideoGeneration/motion_guidance_env/src/taming-transformers
