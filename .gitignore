@@ -8,3 +8,4 @@ motion_guidance_env/
 *chkpts/
 *data/
 *wget-log
+.python-version
