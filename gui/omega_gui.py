@@ -11,7 +11,7 @@ import imageio
 
 # --- CONFIG ---
 image_path = "./assets/topiary.png"
-sam_checkpoint = "./gui/sam_files/sam_vit_b_01ec64.pth"
+sam_checkpoint = "./gui/sam_files/sam_vit_b_01ec64.pth" #can be downloaded from https://dl.fbaipublicfiles.com/segment_anything/sam_vit_b_01ec64.pth
 model_type = "vit_b"
 device = "cpu"
 resize_size = 1024
