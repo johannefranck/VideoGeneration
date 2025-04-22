@@ -15,7 +15,7 @@ prompt: ""
 target_flow_name: null       # e.g. "flow_000.png"
 edit_mask_path: ""        # e.g. "mask.pth"
 guidance_weight: 300.0
-num_recursive_steps: 10
+num_recursive_steps: 1
 color_weight: 100.0
 flow_weight: 3.0
 oracle_flow: false

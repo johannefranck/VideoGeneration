@@ -7,6 +7,8 @@ from PIL import Image
 from torchvision import utils
 from torchvision.transforms.functional import to_tensor
 from omegaconf import OmegaConf
+from pathlib import Path
+from PIL import Image
 
 from ldm.util import instantiate_from_config
 from ldm.models.diffusion.ddim_with_grad import DDIMSamplerWithGrad
@@ -138,6 +140,40 @@ def run_sampling(cfg, model, sampler, data, save_dir):
         torch.save(start_zt, out_dir / 'start_zt.pth')
 
 
+
+def make_results_gif(results_dir: str,
+                     gif_name: str = "flows.gif",
+                     duration: int = 500):
+    """
+    Scans all sub‑directories of `results_dir` for pred.png and
+    writes them in sorted order into a looping GIF.
+
+    Args:
+        results_dir: path to your output root (where sample_000, sample_001, … live)
+        gif_name:   filename of the resulting GIF saved into results_dir
+        duration:   frame duration in milliseconds
+    """
+    results_path = Path(results_dir)
+    # find all pred.png under sample_* dirs
+    png_paths = sorted(results_path.glob("sample_*/pred.png"))
+    if not png_paths:
+        raise RuntimeError(f"No pred.png files found in {results_dir}")
+
+    frames = [Image.open(p) for p in png_paths]
+
+    # save as animated GIF
+    save_path = results_path / gif_name
+    frames[0].save(
+        save_path,
+        format="GIF",
+        save_all=True,
+        append_images=frames[1:],
+        duration=duration,
+        loop=0
+    )
+    print(f"GIF saved to {save_path}")
+
+
 def main():
     cfg = load_cli_config()
     input_dir, output_root = prepare_environment(cfg)
@@ -159,7 +195,8 @@ def main():
     print(f"All flows processed. Outputs saved in {output_root}")
 
     # some code that makes the resulting directory into a los gifos or other format
-
+    
+    make_results_gif(output_root, gif_name="flows.gif", duration=300)
 
 
 if __name__ == '__main__':
