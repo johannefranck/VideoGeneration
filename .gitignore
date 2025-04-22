@@ -9,3 +9,7 @@ motion_guidance_env/
 *data/
 *wget-log
 .python-version
+*Python-3.8.5
+#all in assets git ignore
+*assets/custom_flows/
+*myenv385

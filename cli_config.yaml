@@ -1,0 +1,26 @@
+save_dir: "results"
+num_samples: 1
+input_dir: "./data/teapot"
+log_freq: 0
+
+# Vanilla diffusion args
+sd_model_config: "configs/stable-diffusion/v1-inference.yaml"
+ckpt: "./chkpts/sd-v1-4.ckpt"
+ddim_steps: 500
+ddim_eta: 0.0
+scale: 7.5
+prompt: ""
+
+# Guidance args
+target_flow_name: null       # e.g. "flow_000.png"
+edit_mask_path: ""        # e.g. "mask.pth"
+guidance_weight: 300.0
+num_recursive_steps: 10
+color_weight: 100.0
+flow_weight: 3.0
+oracle_flow: false
+no_occlusion_masking: false
+no_init_startzt: false
+use_cached_latents: false
+guidance_schedule_path: "data/guidance_schedule.npy"
+clip_grad: 200.0
