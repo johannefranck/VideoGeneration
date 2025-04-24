@@ -33,15 +33,16 @@ def main():
 
     # Load image and encode to latent
     img = Image.open(args.input).convert("RGB")
-    img_tensor = to_tensor(img).unsqueeze(0).cuda() * 2 - 1  # [-1, 1]
+    img_tensor = to_tensor(img).unsqueeze(0).cuda() * 2 - 1  # Scale to [-1, 1]
     with torch.no_grad():
-        z = model.encode_first_stage(img_tensor).mode() * 0.18215
+        z = model.encode_first_stage(img_tensor).mode() * 0.18215  # Latent
 
-    # Simulate diffusion process
+    # Simulate diffusion process (stay on CUDA, save to CPU)
     zt = z
+    alphas_cumprod = model.alphas_cumprod.to(zt.device)  # Move all at once
     for t in range(args.ddim_steps):
         noise = torch.randn_like(zt)
-        alpha = torch.tensor(model.alphas_cumprod[t]).cuda()
+        alpha = alphas_cumprod[t]
         zt = (alpha.sqrt() * z + (1 - alpha).sqrt() * noise)
         torch.save(zt.cpu(), output_dir / f"zt.{t:05}.pth")
 

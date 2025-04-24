@@ -116,6 +116,9 @@ def main():
         edit_mask = torch.load(edit_mask_path)
     else:
         edit_mask = torch.zeros(1,4,64,64).bool()
+    
+    edit_mask = edit_mask.to(device)
+
 
     # Get guidance schedule
     if opt.guidance_schedule_path:
@@ -124,14 +127,22 @@ def main():
         guidance_schedule = None
 
     # Get latents for edit mask
+    # if opt.use_cached_latents:
+    #     latents = []
+    #     for i in range(500):    # TODO: HARDCODED!
+    #         latent_path = input_dir / 'latents' / f'zt.{i:05}.pth'
+    #         latents.append(torch.load(latent_path))
+    #     cached_latents = torch.stack(latents)
+    # else:
+    #     cached_latents = None
     if opt.use_cached_latents:
-        latents = []
-        for i in range(500):    # TODO: HARDCODED!
-            latent_path = input_dir / 'latents' / f'zt.{i:05}.pth'
-            latents.append(torch.load(latent_path))
+        latent_paths = sorted((input_dir / 'latents').glob('zt.*.pth'))
+        latents = [torch.load(p).to(device) for p in latent_paths]
         cached_latents = torch.stack(latents)
+
     else:
         cached_latents = None
+
 
     # Get target flow
     target_flow_path = input_dir / 'flows' / opt.target_flow_name
@@ -187,8 +198,11 @@ def main():
         sample_img = model.module.decode_first_stage(sample)
         sample_img = torch.clamp((sample_img + 1.0) / 2.0, min=0.0, max=1.0)
 
-        # Save useful unfo
+        # Save useful info
         utils.save_image(sample_img, sample_save_dir / f'pred.png')
+        print(f"Final latent shape: {sample.shape}")
+        print(f"Saving final image to: {sample_save_dir / 'pred.png'}")
+
         np.save(sample_save_dir / 'losses.npy', info['losses'])
         np.save(sample_save_dir / 'losses_flow.npy', info['losses_flow'])
         np.save(sample_save_dir / 'losses_color.npy', info['losses_color'])

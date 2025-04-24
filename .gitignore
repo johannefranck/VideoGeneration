@@ -14,3 +14,5 @@ results/
 wget-log
 
 taming/
+
+.cache/
