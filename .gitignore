@@ -3,6 +3,7 @@ __pycache__/
 
 *.pth
 *.npy
+*.zip
 motion_guidance_env/
 
 *chkpts/
