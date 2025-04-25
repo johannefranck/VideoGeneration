@@ -8,14 +8,15 @@ from scipy.ndimage import map_coordinates
 import cv2
 from segment_anything import sam_model_registry, SamPredictor
 import imageio
+import torch
 
 # --- CONFIG ---
 image_path = "./assets/topiary.png"
-sam_checkpoint = "./gui/sam_files/sam_vit_b_01ec64.pth" #can be downloaded from https://dl.fbaipublicfiles.com/segment_anything/sam_vit_b_01ec64.pth
+sam_checkpoint = "./gui/sam_files/sam_vit_b_01ec64.pth"
 model_type = "vit_b"
 device = "cpu"
-resize_size = 1024
-n_flows = 20
+resize_size = 512
+n_flows = 10
 output_dir = "./assets/custom_flows"
 os.makedirs(output_dir, exist_ok=True)
 
@@ -85,8 +86,24 @@ while running:
                     multimask_output=True
                 )
                 mask = masks[scores.argmax()].astype(np.uint8)
-                np.save(os.path.join(output_dir, "mask.npy"), mask)
+
+                # Resize and repeat to match repo format: [1, 4, 64, 64]
+                mask_small = np.array(Image.fromarray(mask * 255).resize((64, 64), Image.NEAREST)) // 255
+                mask_stack = np.stack([mask_small] * 4, axis=0)
+                torch_mask = torch.from_numpy(mask_stack).unsqueeze(0).float()
+                torch.save(torch_mask, os.path.join(output_dir, "mask.pth"))
                 print("Mask saved.")
+
+                # --- Visualize the saved mask for confirmation ---
+                upscaled_mask = np.array(Image.fromarray(mask_small * 255).resize((resize_size, resize_size), Image.NEAREST))
+                vis_overlay = im_np.copy()
+                vis_overlay[upscaled_mask == 255] = [255, 0, 0]
+                plt.figure(figsize=(6, 6))
+                plt.imshow(vis_overlay)
+                plt.title("Saved Mask Visualization")
+                plt.axis('off')
+                plt.savefig(os.path.join(output_dir, "mask_visualization.png"))
+                plt.close()
 
                 masked_overlay = (0.6 * im_np * (1 - mask[..., None]) + 255 * mask[..., None]).astype(np.uint8)
                 waiting_for_mask_click = False
@@ -118,7 +135,10 @@ while running:
                 dy = target[1] - origin[1]
                 flow = np.zeros((resize_size, resize_size, 2), dtype=np.float32)
                 flow[mask == 1] = [dy, dx]
-                np.save(os.path.join(output_dir, f"flow_{i}.npy"), flow)
+
+                # Save in (2, H, W) format for compatibility
+                flow_tensor = torch.from_numpy(flow.transpose(2, 0, 1)).unsqueeze(0).float()
+                torch.save(flow_tensor, os.path.join(output_dir, f"flow_{i}.pth"))
 
                 # Composite mask onto new location manually
                 composited = im_np.copy()
