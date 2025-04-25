@@ -10,7 +10,10 @@ results/
 
 *.pth
 *.npy
+*.zip
+motion_guidance_env/
 
-wget-log
-
-taming/
+*chkpts/
+*data/
+*wget-log
+.python-version

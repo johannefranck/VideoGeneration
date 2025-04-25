@@ -1,177 +1,180 @@
-import torch
 import numpy as np
-import math
 import pygame
 from PIL import Image
+from segment_anything import sam_model_registry, SamPredictor
 
-MODES = ['translate', 'rotate', 'scale', 'scale_1d']
-MODE = MODES[0]
-im_path = './assets/apple.png'
-im_path = './assets/topiary.png'
-im = Image.open(im_path)
-im = np.array(im)
-shade = 0.5
-
-### START SAM STUFF ###
-from segment_anything import SamPredictor, sam_model_registry
-
-sam_checkpoint = "./assets/sam_vit_b_01ec64.pth"
+# --- CONFIG ---
+image_path = "./assets/topiary.png"
+sam_checkpoint = "./gui/sam_files/sam_vit_b_01ec64.pth" #can be downloaded from https://dl.fbaipublicfiles.com/segment_anything/sam_vit_b_01ec64.pth
 model_type = "vit_b"
 device = "cpu"
-sam = sam_model_registry[model_type](checkpoint=sam_checkpoint)
-sam.to(device=device)
-predictor = SamPredictor(sam)
-predictor.set_image(im)
-### END SAM STUFF ###
+resize_size = 1024
+# --------------
 
-if MODE == 'translate':
-    from get_image import get_translation as get_image
-elif MODE == 'rotate':
-    from get_image import get_rotation as get_image
-elif MODE == 'scale':
-    from get_image import get_scale as get_image
-elif MODE == 'scale_1d':
-    from get_image import get_scale_1d as get_image
+# --- Resize + pad image to 1024x1024 ---
+def resize(image: np.ndarray, resize_size: int = 1024) -> np.ndarray:
+    pil_img = Image.fromarray(image)
+    w, h = pil_img.size
+    if w >= h:
+        new_w = resize_size
+        new_h = int(h * resize_size / w)
+    else:
+        new_h = resize_size
+        new_w = int(w * resize_size / h)
+    resized = pil_img.resize((new_w, new_h), Image.BILINEAR)
+    padded = Image.new("RGB", (resize_size, resize_size))
+    padded.paste(resized, ((resize_size - new_w) // 2, (resize_size - new_h) // 2))
+    return np.array(padded)
 
-def show_image(image):
-    image_surface = pygame.image.fromstring(image.tobytes(), image.size, image.mode)
-    screen.blit(image_surface, (0, 0))
+# --- Pygame helpers ---
+def show_image(surface, image: Image.Image):
+    surf = pygame.image.fromstring(image.tobytes(), image.size, image.mode)
+    surface.blit(surf, (0, 0))
     pygame.display.flip()
 
-# Initialize Pygame
+def draw_arrow(surface, color, start, end, width=3):
+    pygame.draw.line(surface, color, start, end, width)
+    arrow_size = 10
+    theta = np.arctan2(start[1] - end[1], start[0] - end[0])
+    for angle in [np.pi / 6, -np.pi / 6]:
+        tip = (
+            end[0] + arrow_size * np.cos(theta + angle),
+            end[1] + arrow_size * np.sin(theta + angle)
+        )
+        pygame.draw.line(surface, color, end, tip, width)
+
+# --- Load image + SAM ---
+image_raw = Image.open(image_path)
+image_np = resize(np.array(image_raw), resize_size)
+
+sam = sam_model_registry[model_type](checkpoint=sam_checkpoint)
+sam.to(device)
+predictor = SamPredictor(sam)
+predictor.set_image(image_np)
+
+# --- Pygame setup ---
 pygame.init()
+screen = pygame.display.set_mode((resize_size, resize_size))
+pygame.display.set_caption("Motion Flow Tool")
+show_image(screen, Image.fromarray(image_np))
 
-# Colors
-white = (255, 255, 255)
-black = (0, 0, 0)
-
-# Set up the screen
-screen_width, screen_height = 512, 512
-screen = pygame.display.set_mode((screen_width, screen_height))
-pygame.display.set_caption("Arrow App")
-screen.fill(white)
-
-# Draw image
-image = Image.open(im_path)
-show_image(image)
-
-# Arrow properties
+# --- Main loop ---
+mask = None
+flow = np.zeros((resize_size, resize_size, 2), dtype=np.float32)
+click_point = None
 arrow_start = None
 arrow_end = None
 drawing = False
+done = False
 
-def draw_arrow(surface, color, start, end, width):
-    arrow_size = 7
-    pygame.draw.line(surface, color, start, end, width)
-    theta = math.atan2((start[0]-end[0]), (start[1]-end[1])) + math.pi / 3
-    pygame.draw.polygon(surface, color, (
-                  (end[0]+arrow_size*math.sin(theta), 
-                   end[1]+arrow_size*math.cos(theta)), 
-                  (end[0]+arrow_size*math.sin(theta+2*math.pi/3), 
-                   end[1]+arrow_size*math.cos(theta+2*math.pi/3)), 
-                  (end[0]+arrow_size*math.sin(theta-2*math.pi/3), 
-                   end[1]+arrow_size*math.cos(theta-2*math.pi/3))))
-
-# Main game loop
-running = True
-getting_mask = True
-while running:
+while not done:
     for event in pygame.event.get():
-        if getting_mask:
-            if event.type == pygame.MOUSEBUTTONUP:
-                click_loc = pygame.mouse.get_pos()
+        if event.type == pygame.QUIT:
+            done = True
 
-                input_point = np.array([list(click_loc)])
-                input_label = np.array([1])
+        elif event.type == pygame.MOUSEBUTTONUP and mask is None:
+            click_point = pygame.mouse.get_pos()
+            input_point = np.array([click_point])
 
-                masks, scores, logits = predictor.predict(
-                    point_coords=input_point,
-                    point_labels=input_label,
-                    multimask_output=True,
-                )
+            y, x = click_point[1], click_point[0]
 
-                mask = masks[scores.argmax()]
+            input_label = np.array([1])
+            masks, scores, _ = predictor.predict(
+                point_coords=input_point,
+                point_labels=input_label,
+                multimask_output=True
+            )
+            mask = masks[scores.argmax()]
+            mask = mask.astype(np.uint8)
+            print("Mask created. Now drag to define motion.")
 
-                mask = np.stack([mask]*3,axis=2).astype(float)
-                np.save('mask.npy', mask)
+            # Visualize mask on image
+            overlay = (0.6 * image_np * (1 - mask[..., None]) + 255 * mask[..., None]).astype(np.uint8)
+            show_image(screen, Image.fromarray(overlay))
 
-                g = 0.6
-                bg = Image.fromarray((im * ((1-g) + g * mask.astype(float))).astype(np.uint8))
+        elif event.type == pygame.MOUSEBUTTONDOWN and mask is not None:
+            arrow_start = pygame.mouse.get_pos()
+            drawing = True
 
-                # Show mask + image, then just mask
-                #show_image(bg)
-                #sleep(1)
+        elif event.type == pygame.MOUSEBUTTONUP and drawing:
+            arrow_end = pygame.mouse.get_pos()
+            dx = arrow_end[0] - arrow_start[0]
+            dy = arrow_end[1] - arrow_start[1]
+            print(f"Motion vector: dx={dx}, dy={dy}")
 
-                bg = (shade * im * (1 - mask) + 255 * mask).astype(np.uint8)
-                show_image(Image.fromarray(bg))
+            # Apply motion vector to masked region
+            flow[mask == 1] = [dy, dx]  # Correct order: [row offset, col offset]
+            print(f"Flow field (at click): {flow[y, x]} (should be [dy, dx])")
 
-                getting_mask = False
-        else:
-            if event.type == pygame.QUIT:
-                running = False
-            if event.type==pygame.KEYDOWN:
-                if event.key==pygame.K_RETURN:
-                    torch.save(flow, 'flow.pth')
-                    running = False
-            elif event.type == pygame.MOUSEBUTTONDOWN:
-                arrow_start = pygame.mouse.get_pos()
-                drawing = True
-            elif event.type == pygame.MOUSEBUTTONUP:
-                drawing = False
-            elif event.type == pygame.MOUSEMOTION and drawing:
-                # Clear screen
-                screen.fill(white)
 
-                arrow_end = pygame.mouse.get_pos()
+            # Save mask + flow
+            np.save("./assets/custom_flows/mask.npy", mask)
+            np.save("./assets/custom_flows/flow.npy", flow)
+            print("Saved mask.npy and flow.npy. Exiting.")
+            done = True
 
-                # Calculate dx and dy from arrow_start to arrow_end
-                dx = arrow_end[0] - arrow_start[0]
-                dy = arrow_end[1] - arrow_start[1]
+        elif event.type == pygame.MOUSEMOTION and drawing:
+            current = pygame.mouse.get_pos()
+            overlay = (0.6 * image_np * (1 - mask[..., None]) + 255 * mask[..., None]).astype(np.uint8)
+            show_image(screen, Image.fromarray(overlay))
+            draw_arrow(screen, (0, 0, 0), arrow_start, current)
 
-                # Get the image based on dx and dy
-                flow_image, flow = get_image(arrow_start[0], arrow_start[1], arrow_end[0], arrow_end[1])
-                # Mask Image
-                image = (shade * im * (1 - mask) + flow_image * mask).astype(np.uint8)
-                image = Image.fromarray(image)
-                # Convert PIL Image to Pygame surface
-                image_surface = pygame.image.fromstring(image.tobytes(), image.size, image.mode)
-                # Draw the new background
-                screen.blit(image_surface, (0, 0))
-
-                # Draw arrow while dragging
-                if MODE == 'translate':
-                    draw_arrow(screen, black, arrow_start, pygame.mouse.get_pos(), 3)
-                elif MODE == 'rotate':
-                    rotation_end = (
-                            int(arrow_end[0] + dy / 2.),
-                            int(arrow_end[1] - dx / 2.)
-                                )
-                    draw_arrow(screen, black, arrow_end, rotation_end, 3)
-                    pygame.draw.circle(screen, black, arrow_start, 10, width=3)
-                elif MODE == 'scale':
-                    dr = math.sqrt(dx**2+dy**2)
-                    start = (arrow_start[0] + int(dx / dr * 100), arrow_start[1] + int(dy / dr * 100))
-                    draw_arrow(screen, black, start, pygame.mouse.get_pos(), 3)
-                    pygame.draw.circle(screen, black, arrow_start, 100, width=3)
-                elif MODE == 'scale_1d':
-                    draw_arrow(screen, black, arrow_start, pygame.mouse.get_pos(), 3)
-
-                    dr = math.sqrt(dx**2+dy**2)
-                    ldx = -int(dy / dr * 10)
-                    ldy = int(dx / dr * 10)
-                    udx = int(dx / dr * 100)
-                    udy = int(dy / dr * 100)
-                    start = (arrow_start[0] + ldx, arrow_start[1] + ldy)
-                    end = (arrow_start[0] - ldx, arrow_start[1] - ldy)
-                    pygame.draw.line(screen, black, start, end, 3)
-
-                    start = (arrow_start[0] + udx + ldx, arrow_start[1] + udy + ldy)
-                    end = (arrow_start[0] + udx - ldx, arrow_start[1] + udy - ldy)
-                    pygame.draw.line(screen, black, start, end, 3)
-
-                pygame.display.flip()
-
-# Quit Pygame
 pygame.quit()
 
+import matplotlib.pyplot as plt
+from scipy.ndimage import map_coordinates
+import cv2
 
+print("Creating visualization...")
+
+# --- Panel 1: Mask + Arrow ---
+mask_vis = (0.6 * image_np * (1 - mask[..., None]) + 255 * mask[..., None]).astype(np.uint8)
+arrowed = mask_vis.copy()
+cv2.arrowedLine(
+    arrowed, arrow_start, arrow_end,
+    color=(0, 0, 0), thickness=4, tipLength=0.05
+)
+
+# --- Panel 2: Flow Field ---
+step = 20
+y, x = np.mgrid[0:resize_size:step, 0:resize_size:step]
+u = flow[::step, ::step, 1]
+v = flow[::step, ::step, 0]
+
+# --- Panel 3: Warped image ---
+coords = np.meshgrid(np.arange(resize_size), np.arange(resize_size), indexing='ij')
+coords = np.stack(coords, axis=-1).astype(np.float32)
+warped_coords = coords - flow  # pull-based warping
+
+warped_image = image_np.copy()
+for c in range(3):
+    channel_warped = map_coordinates(
+        image_np[..., c],
+        [warped_coords[..., 0], warped_coords[..., 1]],
+        order=1, mode='constant', cval=0.0
+    )
+
+    # Apply only to the mask
+    warped_image[..., c][mask == 1] = channel_warped[mask == 1]
+
+
+# --- Plot all three ---
+fig, axs = plt.subplots(1, 3, figsize=(18, 6))
+
+axs[0].imshow(arrowed)
+axs[0].set_title("Mask + Arrow")
+axs[0].axis("off")
+
+axs[1].imshow(image_np)
+axs[1].quiver(x, y, u, -v, color='r', scale=100, width=0.003)
+axs[1].set_title("Flow Field")
+axs[1].axis("off")
+
+axs[2].imshow(warped_image)
+axs[2].set_title("Warped Image")
+axs[2].axis("off")
+
+plt.tight_layout()
+plt.savefig("./assets/custom_flows/mask_arrow_flow_vis.png")
+plt.show()
+print("Saved visualization to './assets/custom_flows/mask_arrow_flow_vis.png'")
