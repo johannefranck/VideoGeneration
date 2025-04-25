@@ -1,4 +1,4 @@
-save_dir: "results"
+save_dir: "results/teapot"
 num_samples: 1
 input_dir: "./data/teapot"
 log_freq: 0
@@ -9,7 +9,7 @@ ckpt: "./chkpts/sd-v1-4.ckpt"
 ddim_steps: 500
 ddim_eta: 0.0
 scale: 7.5
-prompt: ""
+prompt: "Floating teapot"
 
 # Guidance args
 target_flow_name: null       # e.g. "flow_000.png"
@@ -24,3 +24,5 @@ no_init_startzt: false
 use_cached_latents: false
 guidance_schedule_path: "data/guidance_schedule.npy"
 clip_grad: 200.0
+
+

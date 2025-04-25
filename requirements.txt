@@ -28,6 +28,6 @@ kornia==0.6
 -e git+https://github.com/openai/CLIP.git@main#egg=clip
 
 #source motion_guidance_env/bin/activate
-export PYTHONPATH=/VideoGeneration/motion_guidance_env/src/taming-transformers
+#export PYTHONPATH=/VideoGeneration/motion_guidance_env/src/taming-transformers
 
-export PYTHONPATH=/work3/s201390/VideoGeneration/motion_guidance_env/src/taming-transformers
+#export PYTHONPATH=/work3/s201390/VideoGeneration/motion_guidance_env/src/taming-transformers

@@ -1,0 +1,90 @@
+
+------------------------------------------------------------
+Sender: LSF System <lsfadmin@hpc.dtu.dk>
+Subject: Job 24800582: <vidgen1> in cluster <dcc> Exited
+
+Job <vidgen1> was submitted from host <n-62-20-1> by user <s201390> in cluster <dcc> at Fri Apr 25 13:31:37 2025
+Job was executed on host(s) <n-62-20-6>, in queue <gpuv100>, as user <s201390> in cluster <dcc> at Fri Apr 25 13:33:51 2025
+</zhome/ee/d/152333> was used as the home directory.
+</work3/s201390/VideoGeneration> was used as the working directory.
+Started at Fri Apr 25 13:33:51 2025
+Terminated at Fri Apr 25 13:39:23 2025
+Results reported at Fri Apr 25 13:39:23 2025
+
+Your job looked like:
+
+------------------------------------------------------------
+# LSBATCH: User input
+#!/bin/bash
+#BSUB -J vidgen1           
+#BSUB -q gpuv100           
+#BSUB -W 01:30                     # Wall time: 30 minutes
+#BSUB -R "rusage[mem=10GB]"    
+#BSUB -o cool%J.out            
+#BSUB -e cool%J.err            
+
+#BSUB -n 1
+#BSUB -R "span[hosts=1]"          
+
+# Load CUDA module (update if needed)
+module load cuda/11.7
+
+# Activate the local virtual environment
+#source /work3/s201390/ADLCV/VideoGeneration/
+source motion_guidance_env/bin/activate
+
+# Optional: set PYTHONPATH if custom modules are needed
+#export PYTHONPATH=/work3/s204104/ADLCV/VideoGeneration:$PYTHONPATH
+
+## For memory
+export HOME=$PWD
+
+# Ensure cache & config folders exist (just in case)
+mkdir -p "$HOME/.cache" "$HOME/.config" "$HOME/.huggingface"
+
+
+# Run your script
+#python ./generate.py \
+#    --prompt "an apple on a wooden table" \
+#    --input_dir ./data/apple \
+#    --edit_mask_path right.mask.pth \
+#    --target_flow_name right.pth \
+#    --use_cached_latents \
+#    --save_dir results/apple.right.rec_step_1 \
+#    --log_freq 5 \
+#    --num_recursive_steps 1
+
+
+#export PYTHONPATH=$PYTHONPATH:/work3/s201390/VideoGeneration/motion_guidance_env/src/taming-transformers
+export PYTHONPATH=/VideoGeneration/motion_guidance_env/src/taming-transformers
+
+export PYTHONPATH=/work3/s201390/VideoGeneration/motion_guidance_env/src/taming-transformers
+# Run your script
+python ./generate.py \
+
+------------------------------------------------------------
+
+TERM_MEMLIMIT: job killed after reaching LSF memory usage limit.
+Exited with exit code 137.
+
+Resource usage summary:
+
+    CPU time :                                   246.18 sec.
+    Max Memory :                                 10240 MB
+    Average Memory :                             9031.80 MB
+    Total Requested Memory :                     10240.00 MB
+    Delta Memory :                               0.00 MB
+    Max Swap :                                   -
+    Max Processes :                              4
+    Max Threads :                                8
+    Run time :                                   332 sec.
+    Turnaround time :                            466 sec.
+
+The output (if any) is above this job summary.
+
+
+
+PS:
+
+Read file <cool24800582.err> for stderr output of this job.
+
