@@ -89,6 +89,10 @@ def load_guidance_data(cfg, input_dir):
     # Target flow
     flow = torch.load(input_dir / 'flows' / cfg.target_flow_name) if cfg.target_flow_name else None
 
+    if flow is not None:
+    # ensure it’s float32 so requires_grad works
+        flow = flow.float().cuda()
+
     guidance_energy = FlowLoss(
         cfg.color_weight,
         cfg.flow_weight,

@@ -2,7 +2,7 @@
 #BSUB -J vidgen1           
 #BSUB -q gpuv100           
 #BSUB -W 01:30                     # Wall time: 30 minutes
-#BSUB -R "rusage[mem=10GB]"    
+#BSUB -R "rusage[mem=20GB]"    
 #BSUB -o cool%J.out            
 #BSUB -e cool%J.err            
 
