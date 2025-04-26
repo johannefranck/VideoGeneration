@@ -1,0 +1,27 @@
+# Output & logging
+save_dir: "results/apple_interpolation_task"
+num_samples: 1
+input_dir: "data/apple_interpolation_task"
+log_freq: 5
+
+# Vanilla diffusion args
+sd_model_config: "configs/stable-diffusion/v1-inference.yaml"
+ckpt: "./chkpts/sd-v1-4.ckpt"
+ddim_steps: 500
+ddim_eta: 0.0
+scale: 7.5
+prompt: "an apple on a wooden table"
+
+# Guidance args
+target_flow_name: "right.pth"
+edit_mask_path: "right.mask.pth"
+guidance_weight: 300.0
+num_recursive_steps: 1
+color_weight: 100.0
+flow_weight: 3.0
+oracle_flow: false
+no_occlusion_masking: false
+no_init_startzt: false
+use_cached_latents: false
+guidance_schedule_path: "data/guidance_schedule.npy"
+clip_grad: 200.0
