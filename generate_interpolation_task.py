@@ -182,18 +182,17 @@ def main():
     cfg = load_cli_config()
     input_dir, output_root = prepare_environment(cfg)
     model, sampler = initialize_model_and_sampler(cfg)
-    
+
     flowInterpolater = FlowInterpolate()
-    n_flows = 20
+    n_flows = 2
 
     # Load and preprocess start and end images
     img_start_path = input_dir / "pred.png"
-    img_end_path = input_dir / "pred_altered.png"
+    img_end_path   = input_dir / "pred_altered.png"
     img_start = to_tensor(Image.open(img_start_path).convert("RGB"))[None].cuda().float() * 2 - 1
     img_end   = to_tensor(Image.open(img_end_path).convert("RGB"))[None].cuda().float() * 2 - 1
 
     flows, info = flowInterpolater(img_start, img_end, n_flows)
-
 
     # SAVE FLOWS
     flow_dir = input_dir / 'flows'
@@ -219,9 +218,7 @@ def main():
         run_sampling(cfg, model, sampler, data, output_root)
 
     print(f"All flows processed. Outputs saved in {output_root}")
-
-    # some code that makes the resulting directory into a los gifos or other format
-    
+    # some code that makes the resulting directory into a los gifos or other format 
     make_results_gif(output_root, gif_name="flows.gif", duration=300)
 
 

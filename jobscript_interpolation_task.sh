@@ -13,7 +13,7 @@
 module load cuda/11.7
 
 # Activate the local virtual environment
-source /work3/s201390/ADLCV/VideoGeneration/
+source /work3/s204104/ADLCV/VideoGeneration_custom_implementation/vidgen_venv/bin/activate
 #source motion_guidance_env/bin/activate
 
 # Optional: set PYTHONPATH if custom modules are needed

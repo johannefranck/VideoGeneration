@@ -13,7 +13,7 @@ scale: 7.5
 prompt: "an apple on a wooden table"
 
 # Guidance args
-target_flow_name: "right.pth"
+#target_flow_name: "right.pth"
 edit_mask_path: "right.mask.pth"
 guidance_weight: 300.0
 num_recursive_steps: 1
