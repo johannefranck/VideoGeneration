@@ -17,3 +17,7 @@ motion_guidance_env/
 *data/
 *wget-log
 .python-version
+.cache/
+*Python-3.8.5/
+*myenv385/
+*.gif
