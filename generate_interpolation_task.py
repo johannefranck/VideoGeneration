@@ -13,7 +13,7 @@ from PIL import Image
 from ldm.util import instantiate_from_config
 from ldm.models.diffusion.ddim_with_grad import DDIMSamplerWithGrad
 from losses import FlowLoss, FlowInterpolate
-
+import re
 
 def load_cli_config(config_path: str = "cli_config_interpolation_task.yaml"):
     """
@@ -138,7 +138,10 @@ def run_sampling(cfg, model, sampler, data, save_dir):
         # Decode and save
         img = model.module.decode_first_stage(sample)
         img = torch.clamp((img + 1.0) / 2.0, 0.0, 1.0)
-        utils.save_image(img, out_dir / 'pred.png')
+
+        name = "pred_" + cfg.target_flow_name[5:9] + ".png"
+        save_path = out_dir / name
+        utils.save_image(img, save_path)
         for key in ['losses', 'losses_flow', 'losses_color', 'noise_norms', 'guidance_norms']:
             np.save(out_dir / f'{key}.npy', info[key])
         torch.save(start_zt, out_dir / 'start_zt.pth')
@@ -149,24 +152,31 @@ def make_results_gif(results_dir: str,
                      gif_name: str = "flows.gif",
                      duration: int = 500):
     """
-    Scans all sub‑directories of `results_dir` for pred.png and
-    writes them in sorted order into a looping GIF.
+    Scans sample_000 subdirectory of `results_dir` for pred_XXXX.png files,
+    sorts them numerically, and writes them into a looping GIF.
 
     Args:
-        results_dir: path to your output root (where sample_000, sample_001, … live)
-        gif_name:   filename of the resulting GIF saved into results_dir
-        duration:   frame duration in milliseconds
+        results_dir: path to output root
+        gif_name:    filename of the resulting GIF
+        duration:    frame duration in milliseconds
     """
     results_path = Path(results_dir)
-    # find all pred.png under sample_* dirs
-    png_paths = sorted(results_path.glob("sample_*/pred.png"))
-    if not png_paths:
-        raise RuntimeError(f"No pred.png files found in {results_dir}")
+    sample_path = results_path / "sample_000"  # <<-- THIS IS NEW ✅
 
+    # Find all pred_XXXX.png files
+    png_paths = [p for p in sample_path.glob("pred_*.png") if re.match(r"pred_\d{4}\.png", p.name)]
+    
+    if not png_paths:
+        raise RuntimeError(f"No pred_XXXX.png files found in {sample_path}")
+
+    # Sort by numeric part of filename
+    png_paths = sorted(png_paths, key=lambda p: int(p.stem.split('_')[1]))
+
+    # Load frames
     frames = [Image.open(p) for p in png_paths]
 
-    # save as animated GIF
-    save_path = results_path / gif_name
+    # Save as animated GIF
+    save_path = results_path / gif_name  # save the gif under results_dir (not inside sample_000)
     frames[0].save(
         save_path,
         format="GIF",
@@ -177,7 +187,6 @@ def make_results_gif(results_dir: str,
     )
     print(f"GIF saved to {save_path}")
 
-
 def main():
     cfg = load_cli_config()
     input_dir, output_root = prepare_environment(cfg)
@@ -185,7 +194,7 @@ def main():
 
     flowInterpolater = FlowInterpolate()
     n_flows = int(cfg.n_flows)
-
+    
     # Load and preprocess start and end images
     img_start_path = input_dir / "pred.png"
     img_end_path   = input_dir / "pred_altered.png"

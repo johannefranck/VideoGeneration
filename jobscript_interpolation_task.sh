@@ -6,18 +6,16 @@
 #BSUB -o cool%J.out            
 #BSUB -e cool%J.err            
 
-#BSUB -n 1
+#BSUB -n 10
 #BSUB -R "span[hosts=1]"          
 
 # Load CUDA module (update if needed)
 module load cuda/11.7
 
 # Activate the local virtual environment
-source /work3/s204104/ADLCV/VideoGeneration_custom_implementation/vidgen_venv/bin/activate
-#source motion_guidance_env/bin/activate
+source /work3/s204104/ADLCV/VideoGeneration/vidgen_venv_interpolate/bin/activate
 
 # Optional: set PYTHONPATH if custom modules are needed
-#export PYTHONPATH=/work3/s204104/ADLCV/VideoGeneration_custom_implementation:$PYTHONPATH
 
 ## For memory
 export HOME=$PWD

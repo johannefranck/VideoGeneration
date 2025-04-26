@@ -1,5 +1,5 @@
 # Output & logging
-save_dir: "results/apple_interpolation_task"
+save_dir: "results/apple_interpolation_task_2"
 num_samples: 1
 input_dir: "data/apple_interpolation_task"
 log_freq: 5
@@ -28,4 +28,4 @@ clip_grad: 200.0
 
 
 # n frames, including the final frame
-n_flows: 2
+n_flows: 3
