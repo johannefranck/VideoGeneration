@@ -25,3 +25,7 @@ no_init_startzt: false
 use_cached_latents: false
 guidance_schedule_path: "data/guidance_schedule.npy"
 clip_grad: 200.0
+
+
+# n frames, including the final frame
+n_flows: 2

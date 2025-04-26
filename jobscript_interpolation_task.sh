@@ -17,7 +17,7 @@ source /work3/s204104/ADLCV/VideoGeneration_custom_implementation/vidgen_venv/bi
 #source motion_guidance_env/bin/activate
 
 # Optional: set PYTHONPATH if custom modules are needed
-#export PYTHONPATH=/work3/s204104/ADLCV/VideoGeneration:$PYTHONPATH
+#export PYTHONPATH=/work3/s204104/ADLCV/VideoGeneration_custom_implementation:$PYTHONPATH
 
 ## For memory
 export HOME=$PWD

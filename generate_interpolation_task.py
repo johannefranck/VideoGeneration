@@ -184,7 +184,7 @@ def main():
     model, sampler = initialize_model_and_sampler(cfg)
 
     flowInterpolater = FlowInterpolate()
-    n_flows = 2
+    n_flows = int(cfg.n_flows)
 
     # Load and preprocess start and end images
     img_start_path = input_dir / "pred.png"
