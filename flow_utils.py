@@ -28,7 +28,7 @@ class RAFT(nn.Module):
         args = argparse.Namespace()
         args.model = raft_dir / model
         args.small = False
-        args.mixed_precision = True
+        args.mixed_precision = False #True
         args.alternate_corr = False
         args.dropout = dropout
 

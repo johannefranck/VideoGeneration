@@ -1,6 +1,5 @@
 import sys
 from pathlib import Path
-
 import numpy as np
 import torch
 from PIL import Image
@@ -9,7 +8,6 @@ from torchvision.transforms.functional import to_tensor
 from omegaconf import OmegaConf
 from pathlib import Path
 from PIL import Image
-
 from ldm.util import instantiate_from_config
 from ldm.models.diffusion.ddim_with_grad import DDIMSamplerWithGrad
 from losses import FlowLoss
@@ -144,7 +142,6 @@ def run_sampling(cfg, model, sampler, data, save_dir):
         torch.save(start_zt, out_dir / 'start_zt.pth')
 
 
-
 def make_results_gif(results_dir: str,
                      gif_name: str = "flows.gif",
                      duration: int = 500):
@@ -188,7 +185,7 @@ def main():
     if not flow_files:
         print(f"No .pth flow files found in {flow_dir}")
         return
-
+    
     for flow_path in flow_files:
         flow_name = flow_path.stem
         print(f"\nProcessing flow: {flow_path.name}")
@@ -197,9 +194,6 @@ def main():
         run_sampling(cfg, model, sampler, data, output_root, flow_name)
 
     print(f"All flows processed. Outputs saved in {output_root}")
-
-    # some code that makes the resulting directory into a los gifos or other format
-    
     make_results_gif(output_root, gif_name="flows.gif", duration=300)
 
 

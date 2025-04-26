@@ -195,9 +195,5 @@ def main():
         torch.save(start_zt, sample_save_dir / 'start_zt.pth')
 
 
-
-
-
-
 if __name__ == "__main__":
     main()

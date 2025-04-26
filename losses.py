@@ -4,6 +4,7 @@ from torch.nn.functional import l1_loss
 from flow_utils import warp, normalize_flow
 from flow_viz import flow_to_image
 from PIL import Image
+#from torch.cuda.amp import autocast
 
 class FlowLoss(nn.Module):
     def __init__(self, color_weight=100.0, flow_weight=1.0, 
@@ -52,6 +53,7 @@ class FlowLoss(nn.Module):
         target = target / 2. + 0.5
         pred = pred / 2. + 0.5
 
+
         # Get flow prediction (detach disoccluded pixels)
         flow = self.flow_net(target, pred)
 
@@ -83,3 +85,35 @@ class FlowLoss(nn.Module):
         return loss, info
 
 
+class FlowInterpolate(nn.Module):
+    def __init__(self):
+        super().__init__()
+
+        # Make flow network
+        from flow_utils import RAFT
+        self.flow_net = RAFT()
+        device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+        self.flow_net = self.flow_net.to(device)
+
+        
+    def forward(self, img_start, img_end, n_flows):
+        device = img_start.device
+
+        # Normalize to [0, 1] and ensure float32
+        img_start_norm = (img_start / 2. + 0.5).float()
+        img_end_norm   = (img_end / 2. + 0.5).float()
+
+        # Disable autocast just around RAFT
+        with torch.no_grad():
+            print("img_start_norm dtype:", img_start_norm.dtype)
+            print("img_end_norm dtype:", img_end_norm.dtype)
+            flow_fw = self.flow_net(img_start_norm, img_end_norm)  # shape (1, 3, H, W)
+
+        t_values = torch.linspace(0, 1, n_flows, device=device)
+        flows = [flow_fw * t for t in t_values]
+
+        flow_vis = flow_to_image(flow_fw[0].permute(1, 2, 0).cpu().numpy())  # HWC
+        flow_im = Image.fromarray(flow_vis)
+        info = {'flow_im': flow_im}
+
+        return flows, info
