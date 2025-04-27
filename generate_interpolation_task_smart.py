@@ -103,7 +103,7 @@ def load_guidance_data(cfg, input_dir):
 
     return src_img, start_zt, edit_mask, guidance_schedule, cached_latents, guidance_energy
 
-def run_sampling(cfg, model, sampler, data, save_dir, img_end):
+def run_sampling(cfg, model, sampler, data, save_dir, img_end, coeff):
     src_img_start, start_zt, edit_mask, guidance_schedule, cached_latents, guidance_energy = data
     uncond_embed = model.module.get_learned_conditioning([""])
     cond_embed = model.module.get_learned_conditioning([cfg.prompt])
@@ -112,7 +112,6 @@ def run_sampling(cfg, model, sampler, data, save_dir, img_end):
     step_idx = cfg.current_step
     n_steps = cfg.total_steps
 
-    coeff = (step_idx + 1) / (n_steps + 1)
     coeff_start = 1.0 - coeff
     coeff_end = coeff
 
@@ -248,10 +247,31 @@ def main():
             utils.save_image(img_to_save, save_path)
             print(f"Saved starting image at {save_path}")
             continue
+        
+        if step == n_steps-1:
+            save_path = out_dir / f"pred_{step:04}.png"
+            img_to_save = torch.clamp((img_end + 1.0) / 2.0, 0.0, 1.0)
+            utils.save_image(img_to_save, save_path)
+            print(f"Saved starting image at {save_path}")
+            continue
+        
+        
+        n_pics_left_to_interpolate = n_steps - 2 - step + 1 #used to calculate coeff
+        coeff = 1/(n_pics_left_to_interpolate+1)
+        """
+        Example:
+        n_steps = 5, hence 3 images should be generated
+        0	-	-	special case: save start
+        1	0.25	from start img
+        2	0.333	from previous img
+        3   0.5	    from previous img
+        4	-	-	special case: save end
+        """
 
+        #coeff is used to scale both flows, and their corrosponding loss coefficient computed using start and end image
         # 1. Compute bidirectional flows
         flow_forward, flow_backward = flowInterpolater.bidirectional(
-            img_current, img_end, step_idx=step-1, n_steps=n_steps-1
+            img_current, img_end, step_idx=step-1, n_steps=n_steps-1, coeff = coeff,
         )
 
         # Save flows for debugging (optional)
@@ -271,7 +291,7 @@ def main():
         # 4. Run sampling step
         out_dir = output_root / f'sample_000'
         out_dir.mkdir(parents=True, exist_ok=True)
-        run_sampling(cfg, model, sampler, data, out_dir, img_end)
+        run_sampling(cfg, model, sampler, data, out_dir, img_end, coeff)
 
         # 5. Update current image
         new_pred_path = out_dir / f"pred_{step:04}.png"

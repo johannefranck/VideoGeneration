@@ -28,4 +28,4 @@ clip_grad: 200.0
 
 
 # n frames, including the final frame
-n_flows: 3
+n_flows: 5 #min 3!!!!!

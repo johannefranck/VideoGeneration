@@ -118,7 +118,7 @@ class FlowInterpolate(nn.Module):
 
         return flows, info
     
-    def bidirectional(self, img_current, img_end, step_idx, n_steps):
+    def bidirectional(self, img_current, img_end, step_idx, n_steps, coeff):
         """
         Generate a pair of (forward, backward) flows scaled with correct interpolation coefficients.
 
@@ -149,7 +149,6 @@ class FlowInterpolate(nn.Module):
         
         # E.g., if n_steps=2, step_idx=0 -> coeff = 0.33
         #       if n_steps=3, step_idx=1 -> coeff = 0.5
-        coeff = (step_idx + 1) / (n_steps + 1)
 
         coeff = torch.tensor(coeff, device=device, dtype=torch.float32)
         one_minus_coeff = 1.0 - coeff
