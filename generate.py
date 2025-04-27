@@ -11,7 +11,14 @@ from PIL import Image
 from ldm.util import instantiate_from_config
 from ldm.models.diffusion.ddim_with_grad import DDIMSamplerWithGrad
 from losses import FlowLoss
+from pathlib import Path
+import shutil
 
+
+
+#Fjerner lige alle warnings fra transformers men ikke errors :)
+from transformers import logging
+logging.set_verbosity_error()  
 
 def load_cli_config(config_path: str = "cli_config.yaml"):
     """
@@ -70,7 +77,7 @@ def load_guidance_data(cfg, input_dir):
 
     # Edit mask
     if cfg.edit_mask_path:
-        mask_path = input_dir / 'flows' / cfg.edit_mask_path
+        mask_path = input_dir / cfg.edit_mask_path
         edit_mask = torch.load(mask_path)
     else:
         edit_mask = torch.zeros(1,4,64,64).bool()
@@ -85,7 +92,7 @@ def load_guidance_data(cfg, input_dir):
         cached_latents = torch.stack(latents)
 
     # Target flow
-    flow = torch.load(input_dir / 'flows' / cfg.target_flow_name) if cfg.target_flow_name else None
+    flow = torch.load(input_dir / cfg.target_flow_name) if cfg.target_flow_name else None
 
     if flow is not None:
     # ensure it’s float32 so requires_grad works
@@ -102,16 +109,19 @@ def load_guidance_data(cfg, input_dir):
     return src_img, start_zt, edit_mask, guidance_schedule, cached_latents, guidance_energy
 
 
-def run_sampling(cfg, model, sampler, data, save_dir):
+def run_sampling(cfg, model, sampler, data, save_dir) -> torch.Tensor:
     src_img, start_zt, edit_mask, guidance_schedule, cached_latents, guidance_energy = data
     uncond_embed = model.module.get_learned_conditioning([""])
-    cond_embed = model.module.get_learned_conditioning([cfg.prompt])
+    cond_embed   = model.module.get_learned_conditioning([cfg.prompt])
 
+    # Grab a clean prefix like "flow_3" from "flow_3.pth"
+    prefix = Path(cfg.target_flow_name).stem
+
+    
     for idx in range(cfg.num_samples):
-        print(f"Sampling {idx + 1}/{cfg.num_samples}")
-        out_dir = save_dir / f'sample_{idx:03}'
-        out_dir.mkdir(parents=True, exist_ok=True)
+        print(f"Sampling {idx + 1}/{cfg.num_samples} for {prefix}")
 
+        # 1) sample
         sample, start_zt, info = sampler.sample(
             num_ddim_steps=cfg.ddim_steps,
             cond_embed=cond_embed,
@@ -129,40 +139,77 @@ def run_sampling(cfg, model, sampler, data, save_dir):
             clip_grad=cfg.clip_grad,
             guidance_weight=cfg.guidance_weight,
             log_freq=cfg.log_freq,
-            results_folder=out_dir,
+            results_folder=None,        # we’re not using a subfolder any more
             guidance_energy=guidance_energy
         )
 
-        # Decode and save
+        # 2) decode
         img = model.module.decode_first_stage(sample)
         img = torch.clamp((img + 1.0) / 2.0, 0.0, 1.0)
-        utils.save_image(img, out_dir / 'pred.png')
-        for key in ['losses', 'losses_flow', 'losses_color', 'noise_norms', 'guidance_norms']:
-            np.save(out_dir / f'{key}.npy', info[key])
-        torch.save(start_zt, out_dir / 'start_zt.pth')
+
+        if cfg.num_samples > 1:
+            png_name  = f"pred_{prefix}_{idx:03}.png"
+        else:
+            png_name  = f"pred_{prefix}.png"
+
+        # 4) save into the single save_dir
+        save_dir.mkdir(parents=True, exist_ok=True)
+        utils.save_image(img, save_dir / png_name)
+
+        # 5) save numpy logs with the same prefix
+        for key in ['losses','losses_flow','losses_color','noise_norms','guidance_norms']:
+            if cfg.num_samples > 1:
+                np_name = f"{key}_{prefix}_{idx:03}.npy"
+            else:
+                np_name = f"{key}_{prefix}.npy"
+            np.save(save_dir / np_name, info[key])
+
+        # 6) and store the new start_zt for the next iteration
+        if cfg.num_samples > 1:
+            zt_name = f"start_zt_{prefix}_{idx:03}.pth"
+        else:
+            zt_name = f"start_zt_{prefix}.pth"
+        torch.save(start_zt, save_dir / zt_name)
+        return start_zt
+
 
 
 def make_results_gif(results_dir: str,
                      gif_name: str = "flows.gif",
                      duration: int = 500):
     """
-    Scans all sub‑directories of `results_dir` for pred.png and
-    writes them in sorted order into a looping GIF.
-
-    Args:
-        results_dir: path to your output root (where sample_000, sample_001, … live)
-        gif_name:   filename of the resulting GIF saved into results_dir
-        duration:   frame duration in milliseconds
+    Scans results_dir for initial_pred_<flow>.png and pred_<flow>.png in numeric order,
+    then writes them into a looping GIF.
     """
     results_path = Path(results_dir)
-    # find all pred.png under sample_* dirs
-    png_paths = sorted(results_path.glob("sample_*/pred.png"))
-    if not png_paths:
-        raise RuntimeError(f"No pred.png files found in {results_dir}")
 
-    frames = [Image.open(p) for p in png_paths]
+    # gather all files
+    init_files = list(results_path.glob("initial_pred_*.png"))
+    pred_files = list(results_path.glob("pred_*.png"))
 
-    # save as animated GIF
+    # extract flow index and sort
+    def idx_of(p: Path):
+        # e.g. initial_pred_flow_3.png → "flow_3" → 3
+        stem = p.stem.split("initial_pred_")[-1].split("pred_")[-1]
+        # handles both prefixes:
+        #   "flow_3" from initial_pred_flow_3
+        #   "flow_3" from pred_flow_3
+        return int(stem.split("_")[-1])
+
+    # for each flow idx, pick init then pred
+    frames = []
+    for idx in sorted({idx_of(p) for p in init_files + pred_files}):
+        init_p = results_path / f"initial_pred_flow_{idx}.png"
+        pred_p = results_path / f"pred_flow_{idx}.png"
+        if init_p.exists():
+            frames.append(Image.open(init_p))
+        if pred_p.exists():
+            frames.append(Image.open(pred_p))
+
+    if not frames:
+        raise RuntimeError(f"No suitable PNGs found in {results_dir}")
+
+    # save as GIF
     save_path = results_path / gif_name
     frames[0].save(
         save_path,
@@ -180,20 +227,51 @@ def main():
     input_dir, output_root = prepare_environment(cfg)
     model, sampler = initialize_model_and_sampler(cfg)
 
-    flow_dir = input_dir / 'flows'
-    flow_files = sorted(flow_dir.glob('*.pth'))
-    if not flow_files:
-        print(f"No .pth flow files found in {flow_dir}")
-        return
-    
-    for flow_path in flow_files:
-        flow_name = flow_path.stem
-        print(f"\nProcessing flow: {flow_path.name}")
-        cfg.target_flow_name = flow_path.name
-        data = load_guidance_data(cfg, input_dir)
-        run_sampling(cfg, model, sampler, data, output_root, flow_name)
+    # --- single copy of the source image ---
+    orig = input_dir / "pred.png"
+    if orig.exists():
+        output_root.mkdir(parents=True, exist_ok=True)
+        shutil.copy(orig, output_root / "initial_pred.png")
 
-    print(f"All flows processed. Outputs saved in {output_root}")
+    # find all flow_*.pth and mask_*.pth in the input folder
+    all_pths = list(input_dir.glob("*.pth"))
+    flows = sorted([p for p in all_pths if p.stem.startswith("flow_")])
+    masks = {p.stem.split("_",1)[1]: p for p in all_pths if p.stem.startswith("mask_")}
+
+    if not flows:
+        print(f"No flow_*.pth files found in {input_dir}")
+        return
+
+        # Load the “base” latent once:
+    orig_start_zt = torch.load(input_dir / 'start_zt.pth').cuda()
+    carried_zt = None
+
+    for flow_path in flows:
+        idx = flow_path.stem.split("_",1)[1]
+        mask_path = masks.get(idx, None)
+        if mask_path is None:
+            print(f"Warning: no matching mask_{idx}.pth for {flow_path.name}, skipping.")
+            continue
+
+        print(f"\n=== Chaining flow_{idx} → mask_{idx} ===")
+        cfg.target_flow_name = flow_path.name
+        cfg.edit_mask_path    = mask_path.name
+
+        # load everything _except_ start_zt
+        src_img, _, edit_mask, guidance_schedule, cached_latents, guidance_energy = \
+            load_guidance_data(cfg, input_dir)
+
+        # decide which latent to use:
+        start_zt = carried_zt if carried_zt is not None else orig_start_zt
+
+        # run_sampling now returns the new latent
+        carried_zt = run_sampling(cfg, model, sampler,
+                                  (src_img, start_zt, edit_mask,
+                                   guidance_schedule, cached_latents,
+                                   guidance_energy),
+                                  output_root)
+
+    print(f"\nAll done! Results are in {output_root}")
     make_results_gif(output_root, gif_name="flows.gif", duration=300)
 
 

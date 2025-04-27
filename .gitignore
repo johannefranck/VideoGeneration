@@ -14,3 +14,4 @@ motion_guidance_env/
 *assets/custom_flows/
 *myenv385
 *.cache/
+results/

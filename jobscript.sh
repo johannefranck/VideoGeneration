@@ -1,10 +1,10 @@
 #!/bin/bash
-#BSUB -J vidgen1           
+#BSUB -J vidgen1_toptop      
 #BSUB -q gpuv100           
-#BSUB -W 01:30                     # Wall time: 30 minutes
+#BSUB -W 08:30                     # Wall time: 30 minutes
 #BSUB -R "rusage[mem=20GB]"    
-#BSUB -o cool%J.out            
-#BSUB -e cool%J.err            
+#BSUB -o toptop(%J.out            
+#BSUB -e toptop(%J.err            
 
 #BSUB -n 1
 #BSUB -R "span[hosts=1]"          
@@ -43,4 +43,4 @@ export PYTHONPATH=/VideoGeneration/motion_guidance_env/src/taming-transformers
 
 export PYTHONPATH=/work3/s201390/VideoGeneration/motion_guidance_env/src/taming-transformers
 # Run your script
-python ./generate.py \
+python ./generate.py
