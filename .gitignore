@@ -15,3 +15,5 @@ motion_guidance_env/
 *myenv385
 *.cache/
 results/
+*.err
+*.out
