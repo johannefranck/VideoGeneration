@@ -117,8 +117,8 @@ def run_sampling(cfg, model, sampler, data, save_dir, img_end, coeff):
 
     for idx in range(cfg.num_samples):
         print(f"Sampling {idx + 1}/{cfg.num_samples}")
-        out_dir = save_dir / f'sample_{idx:03}'
-        out_dir.mkdir(parents=True, exist_ok=True)
+        out_dir = save_dir
+        #out_dir.mkdir(parents=True, exist_ok=True)
 
         sample, start_zt, info = sampler.sampling_bidirectional(
             num_ddim_steps=cfg.ddim_steps,
@@ -298,7 +298,6 @@ def main():
         img_current = to_tensor(Image.open(new_pred_path).convert("RGB"))[None].cuda().float() * 2 - 1
 
     print(f"\nInterpolation process complete. Outputs saved in {output_root}.")
-
     # Make GIFs
     make_results_gif(output_root, gif_names=["flows.gif", "flows_fast.gif"], durations=[300, 70])
 

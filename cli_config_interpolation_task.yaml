@@ -1,5 +1,5 @@
 # Output & logging
-save_dir: "results/apple_interpolation_task_2"
+save_dir: "results/apple_interpolation_smart"
 num_samples: 1
 input_dir: "data/apple_interpolation_task"
 log_freq: 5
