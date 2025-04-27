@@ -147,8 +147,10 @@ def run_sampling(cfg, model, sampler, data, save_dir, img_end, coeff):
         # Decode and save
         img = model.module.decode_first_stage(sample)
         img = torch.clamp((img + 1.0) / 2.0, 0.0, 1.0)
-
-        name = "pred_" + cfg.target_flow_name[5:9] + ".png"
+        
+        match = re.search(r'(\d{4})', cfg.target_flow_name)
+        flow_idx = match.group(1)
+        name = f"pred_{flow_idx}.png"
         save_path = out_dir / name
         utils.save_image(img, save_path)
         for key in ['losses', 'losses_flow', 'losses_color', 'noise_norms', 'guidance_norms']:
