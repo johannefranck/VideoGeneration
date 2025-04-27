@@ -23,5 +23,5 @@ export HOME=$PWD
 # Ensure cache & config folders exist (just in case)
 mkdir -p "$HOME/.cache" "$HOME/.config" "$HOME/.huggingface"
 
-
-python generate_interpolation_task.py
+#python generate_interpolation_task.py
+python generate_interpolation_task_smart.py
