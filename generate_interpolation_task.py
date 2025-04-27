@@ -202,6 +202,8 @@ def main():
     img_end   = to_tensor(Image.open(img_end_path).convert("RGB"))[None].cuda().float() * 2 - 1
 
     flows, info = flowInterpolater(img_start, img_end, n_flows)
+        #Example:  If n_flows = 5 -> [flow*0.0, flow*0.25, flow*0.5, flow*0.75, flow*1]
+
 
     # SAVE FLOWS
     flow_dir = input_dir / 'flows'
@@ -229,7 +231,10 @@ def main():
     print(f"All flows processed. Outputs saved in {output_root}")
     # some code that makes the resulting directory into a los gifos or other format 
     make_results_gif(output_root, gif_name="flows.gif", duration=300)
-
+    make_results_gif(output_root, gif_name="flows_fast.gif", duration=70)
 
 if __name__ == '__main__':
     main()
+
+
+

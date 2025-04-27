@@ -117,3 +117,45 @@ class FlowInterpolate(nn.Module):
         info = {'flow_im': flow_im}
 
         return flows, info
+    
+    def bidirectional(self, img_current, img_end, step_idx, n_steps):
+        """
+        Generate a pair of (forward, backward) flows scaled with correct interpolation coefficients.
+
+        Args:
+            img_current: the current image (B,C,H,W)
+            img_end: the target (final) image (B,C,H,W)
+            step_idx: the current step index (0-indexed)
+            n_steps: total number of steps in the interpolation
+
+        Returns:
+            flow_forward_scaled, flow_backward_scaled
+        """
+        device = img_current.device
+
+        # Normalize to [0,1]
+        img_current_norm = (img_current / 2. + 0.5).float()
+        img_end_norm = (img_end / 2. + 0.5).float()
+
+        with torch.no_grad():
+            # Forward flow: from img_current -> img_end
+            flow_fw = self.flow_net(img_current_norm, img_end_norm)
+            # Backward flow: from img_end -> img_current
+            flow_bw = self.flow_net(img_end_norm, img_current_norm)
+
+        # Compute interpolation coefficients
+        if n_steps < 2:
+            raise ValueError("n_steps must be >= 2")
+        
+        # E.g., if n_steps=2, step_idx=0 -> coeff = 0.33
+        #       if n_steps=3, step_idx=1 -> coeff = 0.5
+        coeff = (step_idx + 1) / (n_steps + 1)
+
+        coeff = torch.tensor(coeff, device=device, dtype=torch.float32)
+        one_minus_coeff = 1.0 - coeff
+
+        # Scale flows
+        flow_forward_scaled = flow_fw * coeff
+        flow_backward_scaled = flow_bw * one_minus_coeff
+
+        return flow_forward_scaled, flow_backward_scaled
