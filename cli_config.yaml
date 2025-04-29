@@ -1,6 +1,6 @@
-save_dir: "results/teapot"
+save_dir: "results/apple2"
 num_samples: 1
-input_dir: "assets/custom_flows"
+input_dir: "./assets/custom_flows_apple"
 log_freq: 0
 
 # Vanilla diffusion args
@@ -9,20 +9,19 @@ ckpt: "./chkpts/sd-v1-4.ckpt"
 ddim_steps: 500
 ddim_eta: 0.0
 scale: 7.5
-prompt: "Floating teapot"
+prompt: "an apple on a wooden table"
+#"an apple on a wooden table"
 
 # Guidance args
 target_flow_name: null       # e.g. "flow_000.png"
 edit_mask_path: ""        # e.g. "mask.pth"
 guidance_weight: 300.0
 num_recursive_steps: 1
-color_weight: 100.0
-flow_weight: 3.0
+color_weight: 100.0 #normalt 100
+flow_weight: 10.0 # evt juster hvis objekt ikke rykker sig nok. 3.0 orig
 oracle_flow: false
 no_occlusion_masking: false
 no_init_startzt: false
 use_cached_latents: false
 guidance_schedule_path: "data/guidance_schedule.npy"
 clip_grad: 200.0
-
-

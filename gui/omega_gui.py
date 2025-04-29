@@ -10,13 +10,13 @@ import imageio
 import torch
 
 # --- CONFIG ---
-image_path = "./assets/topiary.png"
+image_path = "./assets/apple.png"
 sam_checkpoint = "./gui/sam_files/sam_vit_b_01ec64.pth"
 model_type = "vit_b"
 device = "cpu"
 resize_size = 512
-n_flows = 10
-output_dir = "./assets/custom_flows"
+n_flows = 8
+output_dir = "./assets/custom_flows_apple"
 os.makedirs(output_dir, exist_ok=True)
 
 # --- Resize + pad image to 512x512 ---
