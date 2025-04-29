@@ -93,18 +93,11 @@ def load_guidance_data(cfg, input_dir):
 
     # Target flow
     flow = torch.load(input_dir / cfg.target_flow_name) if cfg.target_flow_name else None
-
     if flow is not None:
     # ensure it’s float32 so requires_grad works
         flow = flow.float().cuda()
 
-    guidance_energy = FlowLoss(
-        cfg.color_weight,
-        cfg.flow_weight,
-        oracle=cfg.oracle_flow,
-        target_flow=flow,
-        occlusion_masking=not cfg.no_occlusion_masking
-    ).cuda()
+    guidance_energy = FlowLoss(cfg.color_weight,cfg.flow_weight,oracle=cfg.oracle_flow,target_flow=flow,occlusion_masking=not cfg.no_occlusion_masking).cuda()
 
     return src_img, start_zt, edit_mask, guidance_schedule, cached_latents, guidance_energy
 
@@ -170,7 +163,7 @@ def run_sampling(cfg, model, sampler, data, save_dir) -> torch.Tensor:
         else:
             zt_name = f"start_zt_{prefix}.pth"
         torch.save(start_zt, save_dir / zt_name)
-        return start_zt
+    return start_zt
 
 
 
@@ -244,9 +237,9 @@ def main():
 
         # Load the “base” latent once:
     orig_start_zt = torch.load(input_dir / 'start_zt.pth').cuda()
-    carried_zt = None
 
     for flow_path in flows:
+        
         idx = flow_path.stem.split("_",1)[1]
         mask_path = masks.get(idx, None)
         if mask_path is None:
@@ -262,10 +255,10 @@ def main():
             load_guidance_data(cfg, input_dir)
 
         # decide which latent to use:
-        start_zt = carried_zt if carried_zt is not None else orig_start_zt
+        start_zt = orig_start_zt
 
         # run_sampling now returns the new latent
-        carried_zt = run_sampling(cfg, model, sampler,
+        start_zt = run_sampling(cfg, model, sampler,
                                   (src_img, start_zt, edit_mask,
                                    guidance_schedule, cached_latents,
                                    guidance_energy),

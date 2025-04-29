@@ -16,7 +16,7 @@ model_type = "vit_b"
 device = "cpu"
 resize_size = 512
 n_flows = 8
-output_dir = "./assets/custom_flows_apple"
+output_dir = "./assets/custom_flows_apple_test"
 os.makedirs(output_dir, exist_ok=True)
 
 # --- Resize + pad image to 512x512 ---
@@ -115,16 +115,21 @@ while running:
             coords_y, coords_x = np.where(mask_bool)
 
             for i, target in enumerate(targets):
-                dx = target[0] - origin[0]
-                dy = target[1] - origin[1]
-                flow = np.zeros((resize_size, resize_size, 2), dtype=np.float32)
-                flow[mask_bool] = [dy, dx]
+                 # ----- displacement from origin → target --------------------
+                dy = target[0] - origin[0]          # +→  (horizontal, u)
+                dx = target[1] - origin[1]          # +↓  (vertical,   v)
 
+                # ----- flow field  (channel-0 = dx, channel-1 = dy) ---------
+                flow = np.zeros((resize_size, resize_size, 2), np.float32)
+                flow[mask_bool] = [dx, dy]
+
+                # save as 1 × 2 × H × W tensor
                 flow_tensor = torch.from_numpy(flow.transpose(2, 0, 1)).unsqueeze(0).float()
                 torch.save(flow_tensor, os.path.join(output_dir, f"flow_{i}.pth"))
 
-                new_y = coords_y + dy
-                new_x = coords_x + dx
+                # ----- destination mask -------------------------------------
+                new_y = coords_y + dx
+                new_x = coords_x + dy
                 valid = (0 <= new_y) & (new_y < resize_size) & (0 <= new_x) & (new_x < resize_size)
                 dest_mask = np.zeros_like(mask_bool)
                 dest_mask[new_y[valid], new_x[valid]] = 1

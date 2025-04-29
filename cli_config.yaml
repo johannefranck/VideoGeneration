@@ -1,6 +1,6 @@
-save_dir: "results/apple2"
+save_dir: "results/apple4_test"
 num_samples: 1
-input_dir: "./assets/custom_flows_apple"
+input_dir: "./assets/custom_flows_apple_test"
 log_freq: 0
 
 # Vanilla diffusion args
@@ -17,7 +17,7 @@ target_flow_name: null       # e.g. "flow_000.png"
 edit_mask_path: ""        # e.g. "mask.pth"
 guidance_weight: 300.0
 num_recursive_steps: 1
-color_weight: 100.0 #normalt 100
+color_weight: 300.0 #normalt 100
 flow_weight: 10.0 # evt juster hvis objekt ikke rykker sig nok. 3.0 orig
 oracle_flow: false
 no_occlusion_masking: false

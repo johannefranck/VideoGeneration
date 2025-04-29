@@ -1,10 +1,10 @@
 #!/bin/bash
-#BSUB -J vidgen1_apple2      
-#BSUB -q gpuv100           
+#BSUB -J vidgen1_apple4     
+#BSUB -q gpua100           
 #BSUB -W 08:30                     # Wall time: 30 minutes
 #BSUB -R "rusage[mem=20GB]"    
-#BSUB -o apple2(%J.out            
-#BSUB -e apple2(%J.err            
+#BSUB -o apple4(%J.out            
+#BSUB -e apple4(%J.err            
 
 #BSUB -n 1
 #BSUB -R "span[hosts=1]"  
