@@ -1,205 +1,272 @@
-import argparse
+import sys
 from pathlib import Path
-from omegaconf import OmegaConf
-
-from PIL import Image
 import numpy as np
-
 import torch
+from PIL import Image
 from torchvision import utils
 from torchvision.transforms.functional import to_tensor
-
+from omegaconf import OmegaConf
+from pathlib import Path
+from PIL import Image
 from ldm.util import instantiate_from_config
 from ldm.models.diffusion.ddim_with_grad import DDIMSamplerWithGrad
 from losses import FlowLoss
+from pathlib import Path
+import shutil
 
 
 
-def load_model_from_config(config, ckpt, verbose=False):
+#Fjerner lige alle warnings fra transformers men ikke errors :)
+from transformers import logging
+logging.set_verbosity_error()  
+
+def load_cli_config(config_path: str = "cli_config.yaml"):
+    """
+    Load configuration from a YAML file.
+    """
+    if not Path(config_path).is_file():
+        print(f"Error: configuration file '{config_path}' not found.")
+        sys.exit(1)
+    return OmegaConf.load(config_path)
+
+
+def load_model_from_config(cfg, ckpt, verbose=False):
     print(f"Loading model from {ckpt}")
     pl_sd = torch.load(ckpt, map_location="cpu")
     if "global_step" in pl_sd:
         print(f"Global Step: {pl_sd['global_step']}")
     sd = pl_sd["state_dict"]
-    model = instantiate_from_config(config.model)
-    m, u = model.load_state_dict(sd, strict=False)
-    if len(m) > 0 and verbose:
-        print("missing keys:")
-        print(m)
-    if len(u) > 0 and verbose:
-        print("unexpected keys:")
-        print(u)
-
-    model.cuda()
-    model.eval()
+    model = instantiate_from_config(cfg.model)
+    missing, unexpected = model.load_state_dict(sd, strict=False)
+    if verbose and missing:
+        print("Missing keys:\n", missing)
+    if verbose and unexpected:
+        print("Unexpected keys:\n", unexpected)
+    model.cuda().eval()
     return model
 
 
-def main():
-    parser = argparse.ArgumentParser()
-    # Generation args
-    parser.add_argument("--save_dir", required=True, help='Path to save results')
-    parser.add_argument("--num_samples", default=1, type=int, help='Number of samples to generate')
-    parser.add_argument("--input_dir", type=str, required=True, help='location of src img, flows, etc.')
-    parser.add_argument("--log_freq", type=int, default=0, help='frequency to log info')
-    parser.add_argument("--input_src", type=str, default="pred.png", help="Filename of source image in input_dir, remember the format eg pred_256x256")
-
-    # Vanilla diffusion args
-    parser.add_argument("--ddim_steps", type=int, default=500, help="number of ddim sampling steps. n.b. this is kind of hardcoded, so maybe don't change")
-    parser.add_argument("--ddim_eta", type=float, default=0.0, help="ddim eta, 0 => deterministic")
-    parser.add_argument("--scale", type=float, default=7.5, help="CFG scale")
-    parser.add_argument("--config", type=str, default="configs/stable-diffusion/v1-inference.yaml", help="path to config which constructs model")
-    parser.add_argument("--ckpt", type=str, default="./chkpts/sd-v1-4.ckpt", help="path to checkpoint of model")
-    parser.add_argument("--prompt", default='')
-
-    # Guidance args
-    parser.add_argument("--target_flow_name", type=str, default=None, help='Path to target image. If no path, then default to constant flow')
-    parser.add_argument("--edit_mask_path", type=str, default='', help='path to edit mask')
-    parser.add_argument("--guidance_weight", default=300.0, type=float)
-    parser.add_argument("--num_recursive_steps", default=10, type=int)
-    parser.add_argument("--color_weight", default=100.0, type=float)
-    parser.add_argument("--flow_weight", default=3.0, type=float)
-    parser.add_argument("--oracle_flow", action='store_true')
-    parser.add_argument("--no_occlusion_masking", action='store_true', help='if true, do not mask occlusions in the color loss')
-    parser.add_argument("--no_init_startzt", action='store_true', help='if true, use random initial latent')
-    parser.add_argument("--use_cached_latents", action='store_true', help='use cached latents for edit mask copying')
-    parser.add_argument("--guidance_schedule_path", type=str, default='data/guidance_schedule.npy', help='use a custom guidance schedule')
-    parser.add_argument("--clip_grad", type=float, default=200.0, help='amount to clip guidance gradient by. 0.0 means no clipping')
-
-    opt = parser.parse_args()
-    input_dir = Path(opt.input_dir)
-
-    save_dir = Path(opt.save_dir)
-    save_dir.mkdir(exist_ok=True, parents=True)
-
-    # Save config
-    torch.save(opt, save_dir / 'config.pth')
-
-    # Print for sanity check
-    print(opt)
+def prepare_environment(cfg):
+    input_dir = Path(cfg.input_dir)
+    save_dir = Path(cfg.save_dir)
+    save_dir.mkdir(parents=True, exist_ok=True)
+    torch.save(cfg, save_dir / 'config.pth')
+    print(cfg)
+    return input_dir, save_dir
 
 
-    ######################
-    ### SETUP SAMPLING ###
-    ######################
-
-    # Load model
-    config = OmegaConf.load(f"{opt.config}")
-    model = load_model_from_config(config, f"{opt.ckpt}")
-
-    # Setup model
-    device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
-    model = model.to(device)
-    model = torch.nn.DataParallel(model, device_ids=range(torch.cuda.device_count()))
+def initialize_model_and_sampler(cfg):
+    sd_cfg = OmegaConf.load(cfg.sd_model_config)
+    model = load_model_from_config(sd_cfg, cfg.ckpt)
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    model = torch.nn.DataParallel(model.to(device), device_ids=list(range(torch.cuda.device_count())))
     model.eval()
-
-    # Get DDIM sampler + guidance info
     sampler = DDIMSamplerWithGrad(model)
-
     torch.set_grad_enabled(False)
+    return model, sampler
 
-    # Get guidance image
-    # target_image_path = input_dir / 'pred.png'
-    target_image_path = input_dir / opt.input_src
-    src_img = to_tensor(Image.open(target_image_path))[None] * 2 - 1
+
+def load_guidance_data(cfg, input_dir):
+    # Source image
+    img_path = input_dir / 'pred.png'
+    src_img = to_tensor(Image.open(img_path))[None] * 2 - 1
     src_img = src_img.cuda()
+    
+    # Initial latent
+    start_zt = None if cfg.no_init_startzt else torch.load(input_dir / 'start_zt.pth')
 
-    # Get initial noise
-    if opt.no_init_startzt:
-        start_zt = None
-    else:
-        start_zt = torch.load(input_dir / 'start_zt.pth')
-
-    # Get edit mask
-    if opt.edit_mask_path:
-        edit_mask_path = input_dir / 'flows' / opt.edit_mask_path
-        edit_mask = torch.load(edit_mask_path)
+    # Edit mask
+    if cfg.edit_mask_path:
+        mask_path = input_dir / cfg.edit_mask_path
+        edit_mask = torch.load(mask_path)
     else:
         edit_mask = torch.zeros(1,4,64,64).bool()
 
-    # Get guidance schedule
-    if opt.guidance_schedule_path:
-        guidance_schedule = np.load(opt.guidance_schedule_path)
-    else:
-        guidance_schedule = None
+    # Guidance schedule
+    guidance_schedule = np.load(cfg.guidance_schedule_path) if cfg.guidance_schedule_path else None
 
-    # Get latents for edit mask
-    if opt.use_cached_latents:
-        latents = []
-        for i in range(500):    # TODO: HARDCODED!
-            latent_path = input_dir / 'latents' / f'zt.{i:05}.pth'
-            latents.append(torch.load(latent_path))
+    # Cached latents
+    cached_latents = None
+    if cfg.use_cached_latents:
+        latents = [torch.load(input_dir / 'latents' / f'zt.{i:05}.pth') for i in range(cfg.ddim_steps)]
         cached_latents = torch.stack(latents)
-    else:
-        cached_latents = None
 
-    # Get target flow
-    target_flow_path = input_dir / 'flows' / opt.target_flow_name
-    target_flow = torch.load(target_flow_path)
+    # Target flow
+    flow = torch.load(input_dir / cfg.target_flow_name) if cfg.target_flow_name else None
+    if flow is not None:
+    # ensure it’s float32 so requires_grad works
+        flow = flow.float().cuda()
 
-    # Make loss function
-    guidance_energy = FlowLoss(opt.color_weight, 
-                               opt.flow_weight,
-                               oracle=opt.oracle_flow, 
-                               target_flow=target_flow,
-                               occlusion_masking=not opt.no_occlusion_masking).cuda()
+    guidance_energy = FlowLoss(cfg.color_weight,cfg.flow_weight,oracle=cfg.oracle_flow,target_flow=flow,occlusion_masking=not cfg.no_occlusion_masking).cuda()
+
+    return src_img, start_zt, edit_mask, guidance_schedule, cached_latents, guidance_energy
 
 
-    ######################
-    ### BEGIN SAMPLING ###
-    ######################
-
-    # Get prompt embeddings
+def run_sampling(cfg, model, sampler, data, save_dir) -> torch.Tensor:
+    src_img, start_zt, edit_mask, guidance_schedule, cached_latents, guidance_energy = data
     uncond_embed = model.module.get_learned_conditioning([""])
-    cond_embed = model.module.get_learned_conditioning([opt.prompt])
+    cond_embed   = model.module.get_learned_conditioning([cfg.prompt])
 
-    # Sample N examples
-    for sample_index in range(opt.num_samples):
-        print(f'Sampling {sample_index} of {opt.num_samples}')
+    # Grab a clean prefix like "flow_3" from "flow_3.pth"
+    prefix = Path(cfg.target_flow_name).stem
 
-        # Make new directory for this sample
-        sample_save_dir = save_dir / f'sample_{sample_index:03}'
-        sample_save_dir.mkdir(exist_ok=True, parents=True)
+    
+    for idx in range(cfg.num_samples):
+        print(f"Sampling {idx + 1}/{cfg.num_samples} for {prefix}")
 
-        # Sample
+        # 1) sample
         sample, start_zt, info = sampler.sample(
-                                            num_ddim_steps=opt.ddim_steps,
-                                            cond_embed=cond_embed,
-                                            uncond_embed=uncond_embed,
-                                            batch_size=1,
-                                            shape=[4, 64, 64],
-                                            CFG_scale=opt.scale,
-                                            eta=opt.ddim_eta,
-                                            src_img=src_img,
-                                            start_zt=start_zt,
-                                            guidance_schedule=guidance_schedule,
-                                            cached_latents=cached_latents,
-                                            edit_mask=edit_mask,
-                                            num_recursive_steps=opt.num_recursive_steps,
-                                            clip_grad=opt.clip_grad,
-                                            guidance_weight=opt.guidance_weight,
-                                            log_freq=opt.log_freq,
-                                            results_folder=sample_save_dir,
-                                            guidance_energy=guidance_energy
-                                        )
+            num_ddim_steps=cfg.ddim_steps,
+            cond_embed=cond_embed,
+            uncond_embed=uncond_embed,
+            batch_size=1,
+            shape=[4, 64, 64],
+            CFG_scale=cfg.scale,
+            eta=cfg.ddim_eta,
+            src_img=src_img,
+            start_zt=start_zt,
+            guidance_schedule=guidance_schedule,
+            cached_latents=cached_latents,
+            edit_mask=edit_mask,
+            num_recursive_steps=cfg.num_recursive_steps,
+            clip_grad=cfg.clip_grad,
+            guidance_weight=cfg.guidance_weight,
+            log_freq=cfg.log_freq,
+            results_folder=None,        # we’re not using a subfolder any more
+            guidance_energy=guidance_energy
+        )
 
-        # Decode sampled latent
-        sample_img = model.module.decode_first_stage(sample)
-        sample_img = torch.clamp((sample_img + 1.0) / 2.0, min=0.0, max=1.0)
+        # 2) decode
+        img = model.module.decode_first_stage(sample)
+        img = torch.clamp((img + 1.0) / 2.0, 0.0, 1.0)
 
-        # Save useful unfo
-        utils.save_image(sample_img, sample_save_dir / f'pred.png')
-        np.save(sample_save_dir / 'losses.npy', info['losses'])
-        np.save(sample_save_dir / 'losses_flow.npy', info['losses_flow'])
-        np.save(sample_save_dir / 'losses_color.npy', info['losses_color'])
-        np.save(sample_save_dir / 'noise_norms.npy', info['noise_norms'])
-        np.save(sample_save_dir / 'guidance_norms.npy', info['guidance_norms'])
-        torch.save(start_zt, sample_save_dir / 'start_zt.pth')
+        if cfg.num_samples > 1:
+            png_name  = f"pred_{prefix}_{idx:03}.png"
+        else:
+            png_name  = f"pred_{prefix}.png"
+
+        # 4) save into the single save_dir
+        save_dir.mkdir(parents=True, exist_ok=True)
+        utils.save_image(img, save_dir / png_name)
+
+        # 5) save numpy logs with the same prefix
+        for key in ['losses','losses_flow','losses_color','noise_norms','guidance_norms']:
+            if cfg.num_samples > 1:
+                np_name = f"{key}_{prefix}_{idx:03}.npy"
+            else:
+                np_name = f"{key}_{prefix}.npy"
+            np.save(save_dir / np_name, info[key])
+
+        # 6) and store the new start_zt for the next iteration
+        if cfg.num_samples > 1:
+            zt_name = f"start_zt_{prefix}_{idx:03}.pth"
+        else:
+            zt_name = f"start_zt_{prefix}.pth"
+        torch.save(start_zt, save_dir / zt_name)
+    return start_zt
 
 
 
+def make_results_gif(results_dir: str,
+                     gif_name: str = "flows.gif",
+                     duration: int = 500):
+    """
+    Scans results_dir for initial_pred_<flow>.png and pred_<flow>.png in numeric order,
+    then writes them into a looping GIF.
+    """
+    results_path = Path(results_dir)
+
+    # gather all files
+    init_files = list(results_path.glob("initial_pred_*.png"))
+    pred_files = list(results_path.glob("pred_*.png"))
+
+    # extract flow index and sort
+    def idx_of(p: Path):
+        # e.g. initial_pred_flow_3.png → "flow_3" → 3
+        stem = p.stem.split("initial_pred_")[-1].split("pred_")[-1]
+        # handles both prefixes:
+        #   "flow_3" from initial_pred_flow_3
+        #   "flow_3" from pred_flow_3
+        return int(stem.split("_")[-1])
+
+    # for each flow idx, pick init then pred
+    frames = []
+    for idx in sorted({idx_of(p) for p in init_files + pred_files}):
+        init_p = results_path / f"initial_pred_flow_{idx}.png"
+        pred_p = results_path / f"pred_flow_{idx}.png"
+        if init_p.exists():
+            frames.append(Image.open(init_p))
+        if pred_p.exists():
+            frames.append(Image.open(pred_p))
+
+    if not frames:
+        raise RuntimeError(f"No suitable PNGs found in {results_dir}")
+
+    # save as GIF
+    save_path = results_path / gif_name
+    frames[0].save(
+        save_path,
+        format="GIF",
+        save_all=True,
+        append_images=frames[1:],
+        duration=duration,
+        loop=0
+    )
+    print(f"GIF saved to {save_path}")
 
 
+def main():
+    cfg = load_cli_config()
+    input_dir, output_root = prepare_environment(cfg)
+    model, sampler = initialize_model_and_sampler(cfg)
 
-if __name__ == "__main__":
+    # --- single copy of the source image ---
+    orig = input_dir / "pred.png"
+    if orig.exists():
+        output_root.mkdir(parents=True, exist_ok=True)
+        shutil.copy(orig, output_root / "initial_pred.png")
+
+    # find all flow_*.pth and mask_*.pth in the input folder
+    all_pths = list(input_dir.glob("*.pth"))
+    flows = sorted([p for p in all_pths if p.stem.startswith("flow_")])
+    masks = {p.stem.split("_",1)[1]: p for p in all_pths if p.stem.startswith("mask_")}
+
+    if not flows:
+        print(f"No flow_*.pth files found in {input_dir}")
+        return
+
+        # Load the “base” latent once:
+    orig_start_zt = torch.load(input_dir / 'start_zt.pth').cuda()
+
+    for flow_path in flows:
+        
+        idx = flow_path.stem.split("_",1)[1]
+        mask_path = masks.get(idx, None)
+        if mask_path is None:
+            print(f"Warning: no matching mask_{idx}.pth for {flow_path.name}, skipping.")
+            continue
+
+        print(f"\n=== Chaining flow_{idx} → mask_{idx} ===")
+        cfg.target_flow_name = flow_path.name
+        cfg.edit_mask_path    = mask_path.name
+
+        # load everything _except_ start_zt
+        src_img, _, edit_mask, guidance_schedule, cached_latents, guidance_energy = \
+            load_guidance_data(cfg, input_dir)
+
+        # decide which latent to use:
+        start_zt = orig_start_zt
+
+        # run_sampling now returns the new latent
+        start_zt = run_sampling(cfg, model, sampler,
+                                  (src_img, start_zt, edit_mask,
+                                   guidance_schedule, cached_latents,
+                                   guidance_energy),
+                                  output_root)
+
+    print(f"\nAll done! Results are in {output_root}")
+    make_results_gif(output_root, gif_name="flows.gif", duration=300)
+
+
+if __name__ == '__main__':
     main()

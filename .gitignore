@@ -21,3 +21,5 @@ motion_guidance_env/
 *Python-3.8.5/
 *myenv385/
 *.gif
+*.err
+*.out
