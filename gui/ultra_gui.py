@@ -30,9 +30,11 @@ os.makedirs(output_dir, exist_ok=True)
 masks_dir = os.path.join(output_dir, "masks")
 flows_dir = os.path.join(output_dir, "flows")
 vis_dir = os.path.join(output_dir, "visualizations")
+logs_dir = os.path.join(output_dir, "logs")
 os.makedirs(masks_dir, exist_ok=True)
 os.makedirs(flows_dir, exist_ok=True)
 os.makedirs(vis_dir, exist_ok=True)
+os.makedirs(logs_dir, exist_ok=True)
 
 sam_checkpoint = "./gui/sam_files/sam_vit_b_01ec64.pth"
 model_type = "vit_b"
@@ -230,8 +232,8 @@ while running:
 #BSUB -q gpua100
 #BSUB -W 08:30
 #BSUB -R \"rusage[mem=20GB]\"
-#BSUB -o {args.output_folder}(%J).out
-#BSUB -e {args.output_folder}(%J).err
+#BSUB -o {logs_dir}/{args.output_folder}.out
+#BSUB -e {logs_dir}/{args.output_folder}.err
 
 #BSUB -n 1
 #BSUB -R \"span[hosts=1]\"
