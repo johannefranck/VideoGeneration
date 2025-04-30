@@ -122,9 +122,10 @@ while running:
             root.geometry("400x350")
             entries = {}
             defaults = {
-                'n_flows': 8,
+                'n_flows': 10,
+                'dilation_iterations': 10,
                 'guidance_weight': 300.0,
-                'num_recursive_steps': 1,
+                'num_recursive_steps': 3,
                 'color_weight': 100.0,
                 'flow_weight': 3.0,
                 'clip_grad': 200.0,
@@ -148,6 +149,7 @@ while running:
             root.mainloop()
 
             n_flows = int(defaults['n_flows'])
+            dilation_iterations = int(defaults['dilation_iterations'])
             mask_bool = mask > 0
             path_np = np.array(path_points)
             indices = np.linspace(1, len(path_np) - 1, n_flows).astype(int)
@@ -168,7 +170,7 @@ while running:
                 dest_mask[new_y[valid], new_x[valid]] = 1
 
                 union_mask = np.logical_or(mask_bool, dest_mask)
-                dilated_mask = cv2.dilate(union_mask.astype(np.uint8), np.ones((5,5), np.uint8), iterations=10) > 0
+                dilated_mask = cv2.dilate(union_mask.astype(np.uint8), np.ones((5,5), np.uint8), iterations=dilation_iterations) > 0
                 final_edit_mask = ~dilated_mask
                 downsampled = np.array(Image.fromarray(final_edit_mask.astype(np.uint8) * 255).resize((64, 64), Image.NEAREST)) // 255
                 mask_stack = np.stack([downsampled] * 4, axis=0)
@@ -217,7 +219,8 @@ while running:
                 'no_occlusion_masking': False,
                 'no_init_startzt': False,
                 'use_cached_latents': False,
-                'guidance_schedule_path': "data/guidance_schedule.npy"
+                'guidance_schedule_path': "data/guidance_schedule.npy",
+                'mixed_precision': True
             }
             yaml_data.update({k: defaults[k] for k in ['guidance_weight', 'num_recursive_steps', 'color_weight', 'flow_weight', 'clip_grad', 'prompt']})
 
@@ -230,8 +233,8 @@ while running:
                 f.write(f"""#!/bin/bash
 #BSUB -J vidgen1_{args.output_folder}
 #BSUB -q gpua100
-#BSUB -W 08:30
-#BSUB -R \"rusage[mem=20GB]\"
+#BSUB -W 02:00
+#BSUB -R \"rusage[mem=15GB]\"
 #BSUB -o {logs_dir}/{args.output_folder}.out
 #BSUB -e {logs_dir}/{args.output_folder}.err
 

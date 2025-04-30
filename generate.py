@@ -13,10 +13,11 @@ from ldm.util import instantiate_from_config
 from ldm.models.diffusion.ddim_with_grad import DDIMSamplerWithGrad
 from losses import FlowLoss
 import shutil
+from torch.amp import autocast 
 
 # Suppress all warnings from HuggingFace transformers
 from transformers import logging
-logging.set_verbosity_error()  
+logging.set_verbosity_error()   
 
 def load_cli_config():
     # Load YAML config passed as CLI argument
@@ -104,27 +105,27 @@ def run_sampling(cfg, model, sampler, data, save_dir) -> torch.Tensor:
 
     for idx in range(cfg.num_samples):
         print(f"Sampling {idx + 1}/{cfg.num_samples} for {prefix}")
-
-        sample, start_zt, info = sampler.sample(
-            num_ddim_steps=cfg.ddim_steps,
-            cond_embed=cond_embed,
-            uncond_embed=uncond_embed,
-            batch_size=1,
-            shape=[4, 64, 64],
-            CFG_scale=cfg.scale,
-            eta=cfg.ddim_eta,
-            src_img=src_img,
-            start_zt=start_zt,
-            guidance_schedule=guidance_schedule,
-            cached_latents=cached_latents,
-            edit_mask=edit_mask,
-            num_recursive_steps=cfg.num_recursive_steps,
-            clip_grad=cfg.clip_grad,
-            guidance_weight=cfg.guidance_weight,
-            log_freq=cfg.log_freq,
-            results_folder=None,
-            guidance_energy=guidance_energy
-        )
+        with autocast(device_type="cuda", enabled=getattr(cfg, "mixed_precision", False)):
+            sample, start_zt, info = sampler.sample(
+                num_ddim_steps=cfg.ddim_steps,
+                cond_embed=cond_embed,
+                uncond_embed=uncond_embed,
+                batch_size=1,
+                shape=[4, 64, 64],
+                CFG_scale=cfg.scale,
+                eta=cfg.ddim_eta,
+                src_img=src_img,
+                start_zt=start_zt,
+                guidance_schedule=guidance_schedule,
+                cached_latents=cached_latents,
+                edit_mask=edit_mask,
+                num_recursive_steps=cfg.num_recursive_steps,
+                clip_grad=cfg.clip_grad,
+                guidance_weight=cfg.guidance_weight,
+                log_freq=cfg.log_freq,
+                results_folder=None,
+                guidance_energy=guidance_energy
+            )
 
         # Decode image from latent
         img = model.module.decode_first_stage(sample)
