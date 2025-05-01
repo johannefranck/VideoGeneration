@@ -125,9 +125,9 @@ while running:
                 'n_flows': 10,
                 'dilation_iterations': 10,
                 'guidance_weight': 300.0,
-                'num_recursive_steps': 3,
-                'color_weight': 100.0,
-                'flow_weight': 3.0,
+                'num_recursive_steps': 5,
+                'color_weight': 200.0,
+                'flow_weight': 15.0,
                 'clip_grad': 200.0,
                 'prompt': "an apple on a wooden table"
             }
@@ -232,21 +232,27 @@ while running:
             with open(bash_script_path, "w") as f:
                 f.write(f"""#!/bin/bash
 #BSUB -J vidgen1_{args.output_folder}
-#BSUB -q gpua100
-#BSUB -W 02:00
-#BSUB -R \"rusage[mem=15GB]\"
+#BSUB -q gpuv100
+#BSUB -W 03:00
+#BSUB -R \"rusage[mem=4GB]\"
+#BSUB -gpu "num=1"
 #BSUB -o {logs_dir}/{args.output_folder}.out
 #BSUB -e {logs_dir}/{args.output_folder}.err
 
-#BSUB -n 1
+#BSUB -n 4
 #BSUB -R \"span[hosts=1]\"
 
+cd /work3/s204129/adlicv/project/VideoGeneration || exit 1
+
 module load cuda/11.7
-source motion_guidance_env/bin/activate
+source /work3/s204129/adlicv/project/VideoGeneration/motion_guidance_env/bin/activate
+
+mkdir -p assets/{args.output_folder}/logs
 export HOME=$PWD
 mkdir -p \"$HOME/.cache\" \"$HOME/.config\" \"$HOME/.huggingface\"
 export PYTHONPATH=/VideoGeneration/motion_guidance_env/src/taming-transformers
-python ./generate.py {yaml_path}
+python ./generate.py assets/{args.output_folder}/generation_config.yaml
+
 """)
             os.chmod(bash_script_path, stat.S_IRWXU)
 
