@@ -17,8 +17,8 @@ target_flow_name: null       # e.g. "flow_000.png"
 edit_mask_path: ""        # e.g. "mask.pth"
 guidance_weight: 300.0
 num_recursive_steps: 1
-color_weight: 300.0 #normalt 100
-flow_weight: 10.0 # evt juster hvis objekt ikke rykker sig nok. 3.0 orig
+color_weight: 100 #normalt 100
+flow_weight:  # evt juster hvis objekt ikke rykker sig nok. 3.0 orig
 oracle_flow: false
 no_occlusion_masking: false
 no_init_startzt: false

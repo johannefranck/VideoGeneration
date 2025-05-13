@@ -1,10 +1,10 @@
 ckpt: ./chkpts/sd-v1-4.ckpt
 clip_grad: 200.0
-color_weight: 200.0
+color_weight: 100
 ddim_eta: 0.0
 ddim_steps: 500
 edit_mask_path: ''
-flow_weight: 15.0
+flow_weight: 3
 guidance_schedule_path: data/guidance_schedule.npy
 guidance_weight: 300.0
 input_dir: ./assets/apple_farright
@@ -12,9 +12,9 @@ log_freq: 0
 mixed_precision: true
 no_init_startzt: false
 no_occlusion_masking: false
-num_recursive_steps: 5
+num_recursive_steps: 1
 num_samples: 1
-oracle_flow: false
+oracle_flow: true
 prompt: an apple on a wooden table
 save_dir: results/apple_farright
 scale: 7.5

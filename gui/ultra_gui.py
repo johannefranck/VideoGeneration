@@ -125,9 +125,9 @@ while running:
                 'n_flows': 10,
                 'dilation_iterations': 10,
                 'guidance_weight': 300.0,
-                'num_recursive_steps': 5,
-                'color_weight': 200.0,
-                'flow_weight': 15.0,
+                'num_recursive_steps': 10,
+                'color_weight': 100,
+                'flow_weight': 3,
                 'clip_grad': 200.0,
                 'prompt': "an apple on a wooden table"
             }
@@ -158,13 +158,17 @@ while running:
             coords_y, coords_x = np.where(mask_bool)
 
             for i, target in enumerate(targets):
-                dy, dx = target[0] - origin[0], target[1] - origin[1]
+                dy = target[1] - origin[1]  # vertical change (row)
+                dx = target[0] - origin[0]  # horizontal change (col)
+
                 flow = np.zeros((resize_size, resize_size, 2), np.float32)
-                flow[mask_bool] = [dx, dy]
+                print(f"dx = {dx}, dy = {dy}") # Debugging line
+
+                flow[mask_bool] = [dx, dy]  # channel 0 = dx, channel 1 = dy
                 torch.save(torch.from_numpy(flow.transpose(2, 0, 1)).unsqueeze(0).float(), os.path.join(flows_dir, f"flow_{i}.pth"))
 
-                new_y = coords_y + dx
-                new_x = coords_x + dy
+                new_y = coords_y + dy
+                new_x = coords_x + dx
                 valid = (0 <= new_y) & (new_y < resize_size) & (0 <= new_x) & (new_x < resize_size)
                 dest_mask = np.zeros_like(mask_bool)
                 dest_mask[new_y[valid], new_x[valid]] = 1
@@ -179,24 +183,50 @@ while running:
                 # Visualization
                 mask_background = im_np.copy()
                 mask_background[mask_bool] = [255, 255, 255]
+
+                # Flow: reshape to (H, W, 2) and extract u (dx), v (dy)
+                flow_vis = flow.copy()
+                u = flow_vis[:, :, 0]  # horizontal displacement (dx)
+                v = flow_vis[:, :, 1]  # vertical displacement (dy)
+
+                # Subsample grid for cleaner quiver plot
                 step = 20
-                y, x = np.mgrid[0:resize_size:step, 0:resize_size:step]
-                u = flow[::step, ::step, 1]
-                v = flow[::step, ::step, 0]
+                H, W = u.shape
+                y, x = np.mgrid[0:H:step, 0:W:step]
+                u_sub = u[::step, ::step]
+                v_sub = v[::step, ::step]
+
+                # Path overlay image
                 arrowed = mask_background.copy()
                 for j in range(1, len(path_np)):
                     cv2.line(arrowed, tuple(path_np[j - 1]), tuple(path_np[j]), color=(255, 0, 0), thickness=2)
                 cv2.arrowedLine(arrowed, tuple(origin), tuple(target), color=(0, 0, 0), thickness=4, tipLength=0.05)
+
+                # Final edit mask visualization
                 final_mask_vis = im_np.copy()
                 final_mask_vis[final_edit_mask] = [255, 0, 0]
 
+                # Plot all three panels
                 fig, axs = plt.subplots(1, 3, figsize=(18, 6))
-                axs[0].imshow(arrowed); axs[0].set_title(f"Path {i}"); axs[0].axis("off")
-                axs[1].imshow(im_np); axs[1].quiver(x, y, u, -v, color='r', scale=100, width=0.003); axs[1].axis("off")
-                axs[2].imshow(final_mask_vis); axs[2].set_title("Final Union Mask"); axs[2].axis("off")
+
+                axs[0].imshow(arrowed)
+                axs[0].set_title(f"Path {i}")
+                axs[0].axis("off")
+
+                axs[1].imshow(np.ones((H, W, 3)))  # White background
+                axs[1].quiver(x, y, u_sub, -v_sub, color='r', scale=100, width=0.003)
+                axs[1].set_title("Optical Flow (quiver plot)")
+                axs[1].axis("equal")
+                axs[1].grid(True)
+
+                axs[2].imshow(final_mask_vis)
+                axs[2].set_title("Final Union Mask")
+                axs[2].axis("off")
+
                 plt.tight_layout()
                 plt.savefig(os.path.join(vis_dir, f"mask_arrow_flow_vis_{i}.png"))
                 plt.close()
+
 
             gif_path = os.path.join(output_dir, "flow_visualization.gif")
             plot_paths = [os.path.join(vis_dir, f"mask_arrow_flow_vis_{i}.png") for i in range(n_flows)]

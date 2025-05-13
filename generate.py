@@ -33,7 +33,8 @@ def load_cli_config():
 def load_model_from_config(cfg, ckpt, verbose=False):
     # Load model from checkpoint and config
     print(f"Loading model from {ckpt}")
-    pl_sd = torch.load(ckpt, map_location="cpu")
+    pl_sd = torch.load(ckpt, map_location="cpu")  # Safe if you trust the file
+
     if "global_step" in pl_sd:
         print(f"Global Step: {pl_sd['global_step']}")
     sd = pl_sd["state_dict"]
@@ -61,6 +62,8 @@ def initialize_model_and_sampler(cfg):
     model = load_model_from_config(sd_cfg, cfg.ckpt)
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model = torch.nn.DataParallel(model.to(device), device_ids=list(range(torch.cuda.device_count())))
+    # model = model.to(device)
+
     model.eval()
     sampler = DDIMSamplerWithGrad(model)
     torch.set_grad_enabled(False)

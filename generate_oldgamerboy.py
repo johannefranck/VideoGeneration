@@ -13,8 +13,6 @@ from ldm.util import instantiate_from_config
 from ldm.models.diffusion.ddim_with_grad import DDIMSamplerWithGrad
 from losses import FlowLoss
 
-
-
 def load_model_from_config(config, ckpt, verbose=False):
     print(f"Loading model from {ckpt}")
     pl_sd = torch.load(ckpt, map_location="cpu")
@@ -195,11 +193,6 @@ def main():
         np.save(sample_save_dir / 'noise_norms.npy', info['noise_norms'])
         np.save(sample_save_dir / 'guidance_norms.npy', info['guidance_norms'])
         torch.save(start_zt, sample_save_dir / 'start_zt.pth')
-
-
-
-
-
 
 if __name__ == "__main__":
     main()
