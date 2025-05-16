@@ -214,7 +214,8 @@ while running:
                 axs[0].axis("off")
 
                 axs[1].imshow(np.ones((H, W, 3)))  # White background
-                axs[1].quiver(x, y, u_sub, -v_sub, color='r', scale=100, width=0.003)
+                # axs[1].quiver(x, y, u_sub, -v_sub, color='r', scale=10, width=0.003)
+                axs[1].quiver(x, y, u_sub, -v_sub, color='r', scale=1, scale_units='xy', width=0.003)
                 axs[1].set_title("Optical Flow (quiver plot)")
                 axs[1].axis("equal")
                 axs[1].grid(True)
