@@ -1,5 +1,5 @@
 import os
-# os.environ["CUDA_VISIBLE_DEVICES"] = "1"  # Set which GPU to use
+os.environ["CUDA_VISIBLE_DEVICES"] = "0"  # Set which GPU to use
 
 import torch
 import sys

@@ -122,11 +122,11 @@ while running:
             root.geometry("400x350")
             entries = {}
             defaults = {
-                'n_flows': 10,
+                'n_flows': 5,
                 'dilation_iterations': 10,
                 'guidance_weight': 300.0,
-                'num_recursive_steps': 10,
-                'color_weight': 100,
+                'num_recursive_steps': 8,
+                'color_weight': 200,
                 'flow_weight': 3,
                 'clip_grad': 200.0,
                 'prompt': "an apple on a wooden table"
@@ -245,7 +245,7 @@ while running:
                 'scale': 7.5,
                 'target_flow_name': None,
                 'edit_mask_path': "",
-                'oracle_flow': False,
+                'oracle_flow': True,
                 'no_occlusion_masking': False,
                 'no_init_startzt': False,
                 'use_cached_latents': False,
@@ -263,8 +263,8 @@ while running:
                 f.write(f"""#!/bin/bash
 #BSUB -J vidgen1_{args.output_folder}
 #BSUB -q gpuv100
-#BSUB -W 03:00
-#BSUB -R \"rusage[mem=4GB]\"
+#BSUB -W 06:00
+#BSUB -R \"rusage[mem=5GB]\"
 #BSUB -gpu "num=1"
 #BSUB -o {logs_dir}/{args.output_folder}.out
 #BSUB -e {logs_dir}/{args.output_folder}.err

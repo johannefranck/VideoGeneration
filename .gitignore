@@ -6,8 +6,6 @@ chkpts/
 data/
 **data/
 
-results/
-
 *.pth
 *.npy
 *.zip
